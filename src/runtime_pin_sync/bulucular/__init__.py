@@ -47,10 +47,10 @@ def grid_pin(
     Izgara 20 VE 22'yi test ediyorsa 20 tek başına çelişki değildir; yalnızca
     ızgaranın hiçbiriyle kesişmeyen sabitleme çelişir.
     """
-    from ..versiyon import AralikKumesi
+    from ..versiyon import Aralik, AralikKumesi
 
     ham = ", ".join(degerler)
-    parcalar: list = []
+    parcalar: list[Aralik] = []
     for d in degerler:
         a = spek_ayristir(d)
         if a is None:

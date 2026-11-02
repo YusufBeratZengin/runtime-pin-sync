@@ -14,7 +14,7 @@ from __future__ import annotations
 from .karsilastir import celiski
 from .sabitleme import CALISMA_ZAMANLARI, Celiski, Sabitleme
 from .tara import tara
-from .versiyon import Aralik, AralikKumesi, spek_ayristir, kümeler_kesisir
+from .versiyon import Aralik, AralikKumesi, kümeler_kesisir, spek_ayristir
 from .yaz import Degisiklik, senkronla
 
 __version__ = "0.1.0"

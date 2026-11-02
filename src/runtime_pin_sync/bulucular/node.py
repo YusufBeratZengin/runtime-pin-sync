@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from . import pin, satirlar
 from ..sabitleme import Sabitleme
+from . import pin, satirlar
 
 __all__ = ["surum_dosyasi", "package_json", "lts_coz"]
 

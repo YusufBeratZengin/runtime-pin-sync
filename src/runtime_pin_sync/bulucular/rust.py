@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from . import pin, satir_bul, satirlar
 from .. import minitoml
 from ..sabitleme import Sabitleme
+from . import pin, satir_bul, satirlar
 
 __all__ = ["kanal_dosyasi", "kanal_toml"]
 

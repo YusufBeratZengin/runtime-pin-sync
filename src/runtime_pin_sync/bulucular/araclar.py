@@ -6,9 +6,9 @@ Bu dosyalar çoklu çalışma zamanını tek yerde tutar; kartın varsayılan
 
 from __future__ import annotations
 
-from . import pin, satirlar
 from .. import minitoml
 from ..sabitleme import Sabitleme
+from . import pin, satirlar
 
 __all__ = ["tool_versions", "mise", "TAKMA_ADLAR"]
 

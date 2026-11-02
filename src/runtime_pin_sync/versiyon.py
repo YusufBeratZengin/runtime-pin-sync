@@ -52,12 +52,12 @@ class Aralik:
             return True
         return c == 0 and not (self.alt_kapsar and self.ust_kapsar)
 
-    def kesis(self, o: "Aralik") -> "Aralik":
+    def kesis(self, o: Aralik) -> Aralik:
         alt, alt_k = self._max_alt(o)
         ust, ust_k = self._min_ust(o)
         return Aralik(alt, alt_k, ust, ust_k)
 
-    def _max_alt(self, o: "Aralik") -> tuple[_T | None, bool]:
+    def _max_alt(self, o: Aralik) -> tuple[_T | None, bool]:
         if self.alt is None:
             return o.alt, o.alt_kapsar
         if o.alt is None:
@@ -69,7 +69,7 @@ class Aralik:
             return o.alt, o.alt_kapsar
         return self.alt, (self.alt_kapsar and o.alt_kapsar)
 
-    def _min_ust(self, o: "Aralik") -> tuple[_T | None, bool]:
+    def _min_ust(self, o: Aralik) -> tuple[_T | None, bool]:
         if self.ust is None:
             return o.ust, o.ust_kapsar
         if o.ust is None:
@@ -185,9 +185,8 @@ def _kisit(token: str) -> Aralik | None:
         return None
     # "17.0.2+8" gibi yapısal meta veriyi yok say; ön sürüm soneklerini destekleme
     kuyruk = m.group("kuyruk") or ""
-    if kuyruk and kuyruk not in (".*", ".x"):
-        if not kuyruk.startswith("+"):
-            return None
+    if kuyruk and kuyruk not in (".*", ".x") and not kuyruk.startswith("+"):
+        return None
     v_text = m.group("surum").lstrip("vV")
     v_text = re.sub(r"\.(?:[*xX])$", "", v_text)
     try:

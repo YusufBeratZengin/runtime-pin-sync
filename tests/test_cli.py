@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-from runtime_pin_sync.cli import main
 from conftest import yaz
+from runtime_pin_sync.cli import main
 
 PROJE = str(Path(__file__).resolve().parent.parent / "ornek-depolar")
 

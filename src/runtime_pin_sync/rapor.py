@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .sabitleme import Celiski, Sabitleme
 
 __all__ = ["tablo", "json_sözlüğü"]
 
 
 def _durumlar(pimler: list[Sabitleme], celiskiler: list[Celiski],
-              kaynak: str | None) -> dict[tuple, str]:
+              kaynak: str | None) -> dict[tuple[str, str, str, str], str]:
     dislanan = {(c.calisma_zamani, id(p)) for c in celiskiler for p in c.dislananlar}
     referanslar = {(c.calisma_zamani, c.referans_dosya) for c in celiskiler}
-    durum: dict[tuple, str] = {}
+    durum: dict[tuple[str, str, str, str], str] = {}
     for p in pimler:
         if p.uyari:
             d = "okunamadı"
@@ -19,9 +21,7 @@ def _durumlar(pimler: list[Sabitleme], celiskiler: list[Celiski],
             d = "dinamik, atlandı"
         elif (p.calisma_zamani, id(p)) in dislanan:
             d = "ÇELİŞKİ"
-        elif kaynak is not None and p.dosya == kaynak:
-            d = "referans"
-        elif (p.calisma_zamani, p.dosya) in referanslar and p.ham == next(
+        elif kaynak is not None and p.dosya == kaynak or (p.calisma_zamani, p.dosya) in referanslar and p.ham == next(
                 c.referans_ham for c in celiskiler
                 if (c.calisma_zamani, c.referans_dosya) == (p.calisma_zamani, p.dosya)):
             d = "referans"
@@ -51,7 +51,7 @@ def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
     ]
 
     def dize(parcalar: tuple[str, ...]) -> str:
-        return "  ".join(s.ljust(g) for s, g in zip(parcalar, genislikler)).rstrip()
+        return "  ".join(s.ljust(g) for s, g in zip(parcalar, genislikler, strict=True)).rstrip()
 
     satirlar_out = [dize(başlıklar),
                     dize(tuple("-" * g for g in genislikler))]
@@ -75,7 +75,7 @@ def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
 
 
 def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
-                 kaynak: str | None = None) -> dict:
+                 kaynak: str | None = None) -> dict[str, Any]:
     """JSON çıktı şeması (--json). Dosya yazmaz, sözlük döner."""
     durum = _durumlar(pimler, celiskiler, kaynak)
     return {

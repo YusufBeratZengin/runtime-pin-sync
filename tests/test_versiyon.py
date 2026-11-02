@@ -2,7 +2,7 @@
 
 import pytest
 
-from runtime_pin_sync.versiyon import Aralik, AralikKumesi, spek_ayristir, kümeler_kesisir
+from runtime_pin_sync.versiyon import Aralik, AralikKumesi, kümeler_kesisir, spek_ayristir
 
 
 def kesis(ru, digeri):

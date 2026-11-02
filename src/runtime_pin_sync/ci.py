@@ -79,7 +79,8 @@ def is_aksi(
 def _matris(islem: dict[str, Any]) -> dict[str, Any]:
     strateji = islem.get("strategy")
     if isinstance(strateji, dict) and isinstance(strateji.get("matrix"), dict):
-        return strateji["matrix"]
+        matris: dict[str, Any] = strateji["matrix"]
+        return matris
     return {}
 
 
@@ -171,9 +172,8 @@ def _sablon_ara(
             return matris[ad]
         return None
     kismiler = _SABLON_RE.findall(sablon)
-    if len(kismiler) == 1 and (ad := kismiler[0]):
-        if ad in degiskenler:
-            return _SABLON_RE.sub(degiskenler[ad], sablon)
+    if len(kismiler) == 1 and (ad := kismiler[0]) and ad in degiskenler:
+        return _SABLON_RE.sub(degiskenler[ad], sablon)
     return None
 
 

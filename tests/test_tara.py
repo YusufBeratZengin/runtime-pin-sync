@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from runtime_pin_sync import tara
 from conftest import yaz
+from runtime_pin_sync import tara
 
 PROJE_KOK = Path(__file__).resolve().parent.parent
 

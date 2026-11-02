@@ -12,7 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Sequence
+from collections.abc import Sequence
 
 from . import __version__
 from .karsilastir import celiski
@@ -85,7 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("hata: sync için --kaynak gerekli (tek gerçek kaynak dosya)",
                   file=sys.stderr)
             return 2
-        return _sync(args, norm_kaynak or "", degiskenler, pimler, celiskiler)
+        return _sync(args, degiskenler)
 
     if args.json:
         print(json.dumps(json_sözlüğü(pimler, celiskiler, norm_kaynak),
@@ -95,8 +95,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 1 if celiskiler else 0
 
 
-def _sync(args: argparse.Namespace, kaynak: str, degiskenler: dict[str, str],
-          pimler: list, celiskiler: list) -> int:
+def _sync(args: argparse.Namespace, degiskenler: dict[str, str]) -> int:
     try:
         otomatik, elle = senkronla(args.yol, args.kaynak, args.dry_run, degiskenler)
     except (ValueError, OSError) as exc:

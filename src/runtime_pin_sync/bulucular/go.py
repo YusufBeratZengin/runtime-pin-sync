@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import re
 
-from . import pin, satirlar
 from ..sabitleme import Sabitleme
+from . import pin, satirlar
 
 __all__ = ["gomod", "surum_dosyasi"]
 

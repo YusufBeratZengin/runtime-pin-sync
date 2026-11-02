@@ -128,17 +128,18 @@ def devcontainer(dosya: str, icerik: str) -> list[Sabitleme]:
                   "rust": "rust", "java": "java"}.get(kisa)
             if cz is None:
                 continue
-            surum = None
+            ozel_surum: str | None = None
             if isinstance(ayar, dict):
                 v = ayar.get("version")
-                surum = str(v) if v is not None else None
+                ozel_surum = str(v) if v is not None else None
             elif isinstance(ayar, str):
-                surum = ayar
-            if surum is None or surum.lower() in ("latest", "os-provided", "default"):
+                ozel_surum = ayar
+            if ozel_surum is None or ozel_surum.lower() in (
+                    "latest", "os-provided", "default"):
                 sonuc.append(Sabitleme(cz, dosya, "devcontainer-feature",
-                                       surum or "(varsayılan)", dinamik=True))
+                                       ozel_surum or "(varsayılan)", dinamik=True))
             else:
-                sonuc.append(pin(cz, dosya, "devcontainer-feature", surum))
+                sonuc.append(pin(cz, dosya, "devcontainer-feature", ozel_surum))
     return sonuc
 
 

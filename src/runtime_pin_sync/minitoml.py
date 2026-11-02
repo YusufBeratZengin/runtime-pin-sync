@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 try:  # Python 3.11+
-    import tomllib as _tomllib
+    import tomllib as _tomllib  # type: ignore[import-not-found]
 except ModuleNotFoundError:  # pragma: no cover - 3.10 yolunda test edilir
     _tomllib = None
 
@@ -23,7 +23,8 @@ _MINI_SATIR = re.compile(r'^([A-Za-z0-9_.\-"]+)\s*=\s*(.+)$')
 def oku(veri: bytes) -> dict[str, Any]:
     """TOML baytlarını sözlüğe çevirir; bozuksa ValueError fırlatır."""
     if _tomllib is not None:
-        return _tomllib.loads(veri.decode("utf-8"))
+        veri_sözlük: dict[str, Any] = _tomllib.loads(veri.decode("utf-8"))
+        return veri_sözlük
     return mini_ayristir(veri.decode("utf-8"))
 
 

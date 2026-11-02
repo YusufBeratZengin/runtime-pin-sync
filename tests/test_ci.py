@@ -47,7 +47,7 @@ jobs:
     assert p.ham == "3.11, 3.12"
     assert p.kullanilabilir
     assert not p.aralik.sabit  # ızgara referans adayı değildir
-    from runtime_pin_sync.versiyon import AralikKumesi, spek_ayristir, kümeler_kesisir
+    from runtime_pin_sync.versiyon import AralikKumesi, kümeler_kesisir, spek_ayristir
     assert kümeler_kesisir(p.aralik, spek_ayristir("3.11"))
     assert kümeler_kesisir(p.aralik, spek_ayristir("3.12"))
     assert not kümeler_kesisir(p.aralik, AralikKumesi(()))  # boş kümeyle kesişmez

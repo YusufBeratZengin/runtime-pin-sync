@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from . import pin, satir_bul, satirlar
 from .. import minitoml
 from ..sabitleme import Sabitleme
+from . import pin, satir_bul, satirlar
 
 __all__ = ["surum_dosyasi", "pyproject"]
 
@@ -38,5 +38,5 @@ def pyproject(dosya: str, icerik: str) -> list[Sabitleme]:
     if not isinstance(ham, str):
         return [Sabitleme("python", dosya, "requires-python", str(ham),
                           uyari="okunamadı: requires-python bir metin değil")]
-    satir_no = satir_bul(satirlar(icerik), f"requires-python")
+    satir_no = satir_bul(satirlar(icerik), "requires-python")
     return [pin("python", dosya, "requires-python", ham, satir=satir_no)]

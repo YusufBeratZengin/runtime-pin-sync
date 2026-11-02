@@ -1,7 +1,7 @@
 """senkronla testleri — kabul ölçütü 3: diff yalnız hedef satırı gösterir."""
 
-from runtime_pin_sync import celiski, senkronla, tara
 from conftest import yaz
+from runtime_pin_sync import celiski, senkronla, tara
 
 
 def depo_kur(tmp_path):
