@@ -6,6 +6,41 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed (independent review round)
+- Conflict engine now reports pairwise contradictions (union-find components);
+  a hub pin (`20`, `>=18`) can no longer hide that `20.11.0` conflicts with
+  `20.12.0` or that `20` conflicts with `<20`.
+- Fully specified versions compare as exact points: `20.1.0` no longer
+  "intersects" `>20.1.0`; short tokens (`20`, `3.12`) stay prefix ranges.
+- `sync` targets the parsed field's exact position: `package.json`
+  `dependencies.node` can no longer be rewritten instead of `engines.node`;
+  CI input lookup matches `^\s*<key>:` lines, not prose like
+  `name: node-version 22 installation`.
+- `sync` refuses symlinked targets and paths resolving outside the repo;
+  files are read/written byte-wise so CRLF and mixed line endings survive.
+- `sync` writes only when outlier AND reference tokens are plain fixed
+  versions: `^22` outliers and `>=22`/matrix (`22, 24`) references go to the
+  manual list instead of being written into `.nvmrc`-style files.
+- Deduplication keeps all line occurrences (two `FROM node:22` stages both
+  rewrite); after writing, the repo is rescanned and surviving conflicts
+  exit 1 instead of reporting success.
+- Node LTS table corrected (hydrogen→18, gallium→16 added; source:
+  nodejs/Release schedule.json); moving alias `lts/*` is dynamic, not the
+  table's newest entry.
+- go.mod `go` directive modeled as a minimum requirement: `go 1.22` +
+  `toolchain go1.23.1` is valid, not a conflict.
+- `dtolnay/rust-toolchain@1.85.0` without `with.toolchain` reads the `uses`
+  ref; existing custom `*-version-file` targets are read for content.
+- Rust prereleases (`1.85.0-rc1`) are no longer coerced to `1.85.0`; they are
+  reported (with a warning) and excluded from comparison. Target triples
+  still reduce to the version.
+- 3.10 TOML fallback parses multiline arrays, inline tables and
+  `[[array.table]]` — the project's own `pyproject.toml` no longer breaks it.
+- LICENSE/README/pyproject copyright name is "Yusuf Berat Zengin";
+  SECURITY.md no longer claims dev dependencies are pinned; skipped
+  directories are pruned before descent (`os.walk`); CI negative-example step
+  asserts exit code exactly 1.
+
 ### Planned
 - `--lang en` English message mode
 - `--sdkmanrc` and Ruby `.ruby-version` finders
