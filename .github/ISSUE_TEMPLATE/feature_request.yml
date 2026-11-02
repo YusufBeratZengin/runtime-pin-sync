@@ -1,0 +1,27 @@
+name: Feature request
+description: Yeni dosya biçimi, çalışma zamanı ya da çıktı seçeneği
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hangi gerçek sorunu çözüyor?
+      placeholder: "Gradle depolarında sourceCompatibility okunamıyor, örn..."
+    validations: {required: true}
+  - type: textarea
+    id: solution
+    attributes:
+      label: Önerilen davranış
+      description: Komut/bayrak örnekleriyle; sahte girdi-çıktı bloğu ekleyin.
+    validations: {required: true}
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Proje kuralları
+      options:
+        - label: >
+            Yeni çalışma zamanı bağımlılığı gerektirmiyor (ya da gerekçemi
+            yazdım) — sıfır bağımlılık ilkesi
+          required: true
+        - label: Bulunamayan/dinamik değerler hata değil "atlandı" olacak
+          required: true

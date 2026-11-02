@@ -6,11 +6,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [ -x .venv/bin/python ]; then
-  PY=.venv/bin/python           # Windows'ta: .venv/Scripts/python (aşağıda denenir)
-elif [ -x .venv/Scripts/python ]; then
+  PY=.venv/bin/python
+elif [ -x .venv/Scripts/python ]; then        # Windows sanal ortamı
   PY=.venv/Scripts/python
+elif command -v python3 >/dev/null 2>&1; then
+  PY=python3
+elif command -v python >/dev/null 2>&1; then  # Windows'ta python3 olmayabilir
+  PY=python
 else
-  PY="${PYTHON:-python3}"
+  echo "[check] python3/python bulunamadı"; exit 127
 fi
 
 ensure() {  # $1 = import adı, $2 = pip paketi

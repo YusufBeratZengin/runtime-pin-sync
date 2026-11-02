@@ -1,0 +1,31 @@
+name: Bug report
+description: Yanlış çelişki raporu, çökme veya bozuk sync davranışı
+labels: [bug]
+body:
+  - type: textarea
+    id: actual
+    attributes:
+      label: Gerçek çıktı (real output)
+      description: >
+        Komutun tam hali ve gerçek terminal çıktısı. Lütfen REDAKTE EDİLMİŞ
+        ya da UYDURMA veri kullanın — gerçek iç URL/sır yok.
+      render: console
+    validations: {required: true}
+  - type: textarea
+    id: expected
+    attributes:
+      label: Beklenen davranış
+    validations: {required: true}
+  - type: textarea
+    id: repro
+    attributes:
+      label: En küçük sahte depo
+      description: Hangi dosyada hangi satır var (fake değerlerle)?
+      render: console
+    validations: {required: true}
+  - type: input
+    id: version
+    attributes:
+      label: runtime-pin-sync --version + OS
+      placeholder: "runtime-pin-sync 0.1.0 · Ubuntu 24.04"
+    validations: {required: true}
