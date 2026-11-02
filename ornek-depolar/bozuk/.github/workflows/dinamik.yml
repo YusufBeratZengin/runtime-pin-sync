@@ -1,0 +1,16 @@
+name: ornek-dinamik-fake
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version:
+          - ${{ fromJSON('inputs.versions') }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ '3.12' }}

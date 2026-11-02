@@ -1,0 +1,4 @@
+[project]
+name = "ornek-uydurma-servis"
+version = "0.0.1-fake"
+requires-python = ">=3.10"

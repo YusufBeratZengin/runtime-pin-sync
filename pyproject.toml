@@ -1,0 +1,72 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "runtime-pin-sync"
+version = "0.1.0"
+description = "Find and fix runtime version drift across .nvmrc, Dockerfile, CI and pyproject."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "YusufBeratZengin" }]
+keywords = [
+    "devtools", "ci", "dockerfile", "nvmrc", "tool-versions",
+    "python-version", "monorepo", "consistency",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+]
+# Sıfır çalışma zamanı bağımlılığı: tomllib (stdlib, 3.11+; 3.10 için yerleşik
+# mini ayrıştırıcı yedeği var), json (stdlib) ve CI YAML için küçük kendi
+# ayrıştırıcımız (bkz. src/runtime_pin_sync/miniyaml.py). Gerekçe README'de.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-cov", "ruff", "mypy"]
+
+[project.scripts]
+runtime-pin-sync = "runtime_pin_sync.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/YusufBeratZengin/runtime-pin-sync"
+Repository = "https://github.com/YusufBeratZengin/runtime-pin-sync"
+Issues = "https://github.com/YusufBeratZengin/runtime-pin-sync/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/runtime_pin_sync"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+mypy_path = "src"
+strict = true
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false

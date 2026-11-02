@@ -1,0 +1,8 @@
+{
+  "name": "ornek-uydurma-uygunsuz",
+  "version": "0.0.1-fake",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
