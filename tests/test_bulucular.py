@@ -17,8 +17,12 @@ def test_nvmrc_sabit():
 def test_nvmrc_lts_takma_adlari_tuzak():
     (p,) = node.surum_dosyasi(".nvmrc", "lts/iron\n")
     assert p.ham == "20" and p.kullanilabilir
+    (h,) = node.surum_dosyasi(".nvmrc", "lts/hydrogen\n")
+    assert h.ham == "18" and h.kullanilabilir  # Hydrogen 18'dir, 16 DEĞİL
+    (g,) = node.surum_dosyasi(".nvmrc", "lts/gallium\n")
+    assert g.ham == "16"
     (y,) = node.surum_dosyasi(".nvmrc", "lts/*\n")
-    assert y.ham == "24"
+    assert y.dinamik and not y.kullanilabilir  # hareketli alias: tahmin YOK
     (b,) = node.surum_dosyasi(".nvmrc", "lts/uzayli\n")
     assert b.dinamik and not b.kullanilabilir  # tahmin YOK
 

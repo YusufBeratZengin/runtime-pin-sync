@@ -33,25 +33,35 @@ BİLİNEN_DOSYALAR = frozenset({
 
 
 def tara(yol: str | Path, degiskenler: dict[str, str] | None = None) -> list[Sabitleme]:
-    """Depo kökünü tara; bulinen tüm sabitlemeleri sıralı döndür."""
+    """Depo kökünü tara; bulunan tüm sabitlemeleri sıralı döndür.
+
+    Atlanan dizinlere `os.walk` ile BUDANARAK girilmez (büyük `node_modules`
+    ağaçlarında tarama maliyeti düşer). Aynı dosya/tür/değer yinelenirse tek
+    sabitleme tutulur ama DEĞİŞTİRİLECEK TÜM SATIR KONUMLARI korunur.
+    """
     kok = Path(yol)
     if not kok.is_dir():
         raise ValueError(f"depo klasörü değil: {yol}")
     sonuc: dict[tuple[str, str, str, str], Sabitleme] = {}
-    for alt in sorted(kok.rglob("*")):
-        parca_yol = alt.relative_to(kok).as_posix()
-        parcalar = parca_yol.split("/")
-        if any(parca in ATLANAN_DİZİNLER for parca in parcalar[:-1]):
-            continue
-        if alt.is_dir():
+    for yürütülen, dizinler, dosyalar in os.walk(kok):
+        dizinler[:] = sorted(d for d in dizinler if d not in ATLANAN_DİZİNLER)
+        for ad in sorted(dosyalar):
+            alt = Path(yürütülen) / ad
+            parca_yol = alt.relative_to(kok).as_posix()
             if alt.name in ATLANAN_DİZİNLER:
                 continue
-            continue
-        if not alt.is_file():
-            continue
-        for p in _dosya_işle(kok, parca_yol, alt, degiskenler):
-            anahtar = (p.calisma_zamani, p.dosya, p.tur, p.ham)
-            sonuc.setdefault(anahtar, p)
+            if not alt.is_file():
+                continue
+            for p in _dosya_işle(kok, parca_yol, alt, degiskenler):
+                anahtar = (p.calisma_zamani, p.dosya, p.tur, p.ham)
+                onceki = sonuc.get(anahtar)
+                if onceki is None:
+                    sonuc[anahtar] = p
+                elif p.satir is not None:
+                    # tekilleştirme konumları SİLMEMELİ: hepsi yazılacak
+                    tüm = onceki.tüm_satırlar or (
+                        (onceki.satir,) if onceki.satir else ())
+                    onceki.tüm_satırlar = tuple(dict.fromkeys(tüm + (p.satir,)))
     return sorted(sonuc.values(), key=lambda p: (p.calisma_zamani, p.dosya,
                                                  p.satir or 0, p.tur))
 

@@ -23,6 +23,7 @@ class Sabitleme:
     dinamik: bool = False          # ${{ ... }} ya da çözülemeyen takma ad
     uyari: str | None = None       # "okunamadı: ..." — dosya hataya düşürmez
     satir: int | None = None       # 1-tabanlı satır (sync için)
+    tüm_satırlar: tuple[int, ...] = ()  # aynı ham değerin geçtiği TÜM satırlar
     yeniden_yazilabilir: bool = False
 
     @property

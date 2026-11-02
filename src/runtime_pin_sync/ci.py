@@ -14,7 +14,7 @@ import re
 from typing import Any
 
 from . import miniyaml
-from .bulucular import grid_pin, pin, satirlar
+from .bulucular import go, grid_pin, java, node, pin, python, satirlar
 from .sabitleme import Sabitleme
 
 __all__ = ["is_aksi", "MATRIX_ANAHTARLARI"]
@@ -27,6 +27,13 @@ _ADLIMLAR: tuple[tuple[str, str, str | None, str], ...] = (
     ("setup-java@", "java-version", None, "java"),
     ("rust-toolchain@", "toolchain", None, "rust"),
 )
+
+# Tara'nın zaten tek sürümlük dosya olarak okuduğu adlar: version-file bunlardan
+# birini gösteriyorsa içerik YİNE okunmaz (çift kayıt olmaz).
+TARANAN_SÜRÜM_DOSYALARI = frozenset({
+    ".nvmrc", ".node-version", ".python-version", ".go-version",
+    ".java-version",
+})
 
 MATRIX_ANAHTARLARI = {
     "node-version": "node", "node_version": "node", "node": "node",
@@ -110,11 +117,18 @@ def _adimlar(
         with_block = with_block if isinstance(with_block, dict) else {}
         if dosya_giradi and dosya_giradi in with_block:
             sonuc.extend(_surum_dosyasi_gir(dosya, cz, str(with_block[dosya_giradi]),
-                                            satir_list, depo_koku))
+                                            satir_list, depo_koku, dosya_giradi))
         if giradi not in with_block:
+            # `dtolnay/rust-toolchain@1.85.0` gibi eylemler sürümü uses
+            # referansından alır; girdi yoksa referans OKUNUR (sessiz kaybolmaz).
+            if cz == "rust" and "rust-toolchain@" in uses:
+                ref = uses.rsplit("@", 1)[-1]
+                sonuc.append(pin("rust", dosya, "ci-eylem", ref,
+                                 satir=_tam_satır(satir_list, uses)))
             continue
         deger = with_block[giradi]
-        satir_no = _satir_no(satir_list, giradi)
+        deger_metni = None if isinstance(deger, list) else str(deger)
+        satir_no = _girdi_satırı(satir_list, giradi, deger_metni)
         sonuc.extend(_deger_sabitlemeleri(dosya, cz, "ci-adim", deger, matris,
                                           tuketlenen, satir_no, degiskenler))
     return sonuc
@@ -190,24 +204,76 @@ def _matris_sabitlemeleri(dosya: str, cz: str, anahtar: str, degerler: list[Any]
 
 
 def _surum_dosyasi_gir(
-    dosya: str, cz: str, hedef: str, satir_list: list[str], depo_koku: str
+    dosya: str, cz: str, hedef: str, satir_list: list[str], depo_koku: str,
+    giradi: str = "version-file",
 ) -> list[Sabitleme]:
-    """node-version-file gibi yönlendirmeler: hedef dosya zaten taranır;
-    yalnız hedef YOKSA uyarı üret."""
+    """node-version-file gibi yönlendirmeler:
+
+    - Hedef yoksa açık uyarı üretilir.
+    - Hedef, Tara'nın zaten okuduğu bilinen bir sürüm dosyasıysa sessiz geçilir
+      (çift kayıt olmaz).
+    - Özel adlı hedef dosya MEVCUTSA İÇERİĞİ okunur (varsayılan ad dışındaki
+      sürüm dosyaları kaybolmaz).
+    """
     hedef = hedef.strip()
     if "${{" in hedef:
         return [Sabitleme(cz, dosya, "ci-dosya", hedef, dinamik=True,
-                          satir=_satir_no(satir_list, "version-file"))]
+                          satir=_girdi_satırı(satir_list, giradi))]
     tam = os.path.join(depo_koku, *hedef.split("/"))
-    if os.path.isfile(tam):
+    if not os.path.isfile(tam):
+        return [Sabitleme(cz, dosya, "ci-dosya", hedef,
+                          uyari=f"okunamadı: version-file {hedef!r} bulunamadı",
+                          satir=_girdi_satırı(satir_list, giradi))]
+    if os.path.basename(hedef) in TARANAN_SÜRÜM_DOSYALARI:
         return []  # asıl dosya zaten taranacak — tutarlılık kendiliğinden
-    return [Sabitleme(cz, dosya, "ci-dosya", hedef,
-                      uyari=f"okunamadı: version-file {hedef!r} bulunamadı",
-                      satir=_satir_no(satir_list, "version-file"))]
+    try:
+        with open(tam, encoding="utf-8", errors="replace") as fh:
+            icerik = fh.read()
+    except OSError as exc:
+        return [Sabitleme(cz, dosya, "ci-dosya", hedef,
+                          uyari=f"okunamadı: version-file {hedef!r} ({exc})",
+                          satir=_girdi_satırı(satir_list, giradi))]
+    pimler = _sürüm_dosyası_oku(cz, hedef, icerik)
+    for p in pimler:
+        p.tur = "ci-dosya"
+    return pimler
 
 
-def _satir_no(satir_list: list[str], iplik: str) -> int | None:
-    for i, s in enumerate(satir_list, start=1):
-        if iplik in s:
-            return i
-    return None
+def _sürüm_dosyası_oku(cz: str, hedef: str, icerik: str) -> list[Sabitleme]:
+    """Özel adlı sürüm dosyasının içeriğini ilgili bulucuya verir."""
+    if cz == "node":
+        return node.surum_dosyasi(hedef, icerik)
+    if cz == "python":
+        return python.surum_dosyasi(hedef, icerik)
+    if cz == "go":
+        return go.surum_dosyasi(hedef, icerik)
+    if cz == "java":
+        return java.surum_dosyasi(hedef, icerik)
+    return []
+
+
+def _girdi_satırı(
+    satir_list: list[str], anahtar: str, deger_metni: str | None = None
+) -> int | None:
+    r"""YAML GİRDİ ANAHTARININ satırı: `^\s*<anahtar>:` biçimi.
+
+    Serbest metin araması yanılır: `- name: node-version 22 installation`
+    satırı gerçek `node-version: 20` girdisinden önce gelir. Anahtar verilse
+    bile değer aynı satırda beklenir; bulunamazsa konum belirsizdir → None.
+    """
+    desen = re.compile(rf"^[ \t]*{re.escape(anahtar)}[ \t]*:")
+    anahtar_satırları = [i for i, s in enumerate(satir_list, start=1)
+                         if desen.match(s)]
+    if not anahtar_satırları:
+        return None
+    if deger_metni is None:
+        return anahtar_satırları[0] if len(anahtar_satırları) == 1 else None
+    hedefler = [i for i in anahtar_satırları
+                if deger_metni in satir_list[i - 1]]
+    return hedefler[0] if hedefler else None
+
+
+def _tam_satır(satir_list: list[str], iplik: str) -> int | None:
+    """Tam ipliğin (ör. uses değeri) tek geçtiği satır; belirsizse None."""
+    eşleşen = [i for i, s in enumerate(satir_list, start=1) if iplik in s]
+    return eşleşen[0] if len(eşleşen) == 1 else None

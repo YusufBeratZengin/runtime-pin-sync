@@ -10,7 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-__all__ = ["Aralik", "AralikKumesi", "spek_ayristir", "kümeler_kesisir"]
+__all__ = ["Aralik", "AralikKumesi", "spek_ayristir", "kümeler_kesisir",
+           "sabit_belirtec_mi"]
 
 _T = tuple[int, ...]
 
@@ -118,9 +119,13 @@ def _kismi_aralik(v: _T) -> Aralik:
 
 
 def _tek_kisit(op: str, v: _T, yildiz: bool) -> Aralik:
-    if op in ("", "=", "=="):
-        if yildiz or op == "":
-            return _kismi_aralik(v)
+    if op in ("", "="):
+        # Tam belirtilmiş sürüm (üç+ bileşen) NOKTADIR: "20.1.0" kendi dışındaki
+        # ">20.1.0" ile kesişmez. Kısa belirteç ("20", "20.1", "20.x") önektir.
+        if not yildiz and len(v) >= 3:
+            return Aralik(alt=v, alt_kapsar=True, ust=v, ust_kapsar=True)
+        return _kismi_aralik(v)
+    if op == "==":  # PEP 440: ==3.12 tam değerdir (0.9.10 eşleşmesi yok)
         return Aralik(alt=v, alt_kapsar=True, ust=v, ust_kapsar=True)
     if op == ">=":
         return Aralik(alt=v, alt_kapsar=True)
@@ -195,3 +200,18 @@ def _kisit(token: str) -> Aralik | None:
         return None
     yildiz = ".*" in token or token.endswith(".x") or token.endswith(".X")
     return _tek_kisit(op, v, yildiz)
+
+
+# Operatörü, birleşimi veya listesi OLMAYAN düz sürüm belirteci:
+# "20", "20.11.0", "v22", "20.x", "17.0.2+8". "^22", ">=18", "22 || 24",
+# "22, 24", "lts/iron" GİRMEZ — sync yalnız bu biçimdeki değerleri yazar.
+_TAM_SABİT_RE = re.compile(
+    r"^v?\d+(?:\.\d+){0,3}(?:\.[xX*])?(?:\+[0-9A-Za-z.\-]+)?$")
+
+
+def sabit_belirtec_mi(ham: str) -> bool:
+    """Ham belirteç gerçekten sabit/öneke bir sürüm mü (aralık/matris değil)?"""
+    t = (ham or "").strip()
+    if not _TAM_SABİT_RE.match(t):
+        return False
+    return spek_ayristir(t) is not None

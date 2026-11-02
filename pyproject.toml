@@ -9,7 +9,7 @@ description = "Find and fix runtime version drift across .nvmrc, Dockerfile, CI 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "YusufBeratZengin" }]
+authors = [{ name = "Yusuf Berat Zengin" }]
 keywords = [
     "devtools", "ci", "dockerfile", "nvmrc", "tool-versions",
     "python-version", "monorepo", "consistency",

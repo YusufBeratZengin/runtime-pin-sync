@@ -1,9 +1,17 @@
 """Güvenli senkronizasyon: ``senkronla(yol, kaynak, kuru_calis)``.
 
-Yalnızca *kesin hedefli*, satır-içi yeniden yazılabilir sabitlemeleri değiştirir:
-hedef dosyanın yalnız ilgili satırı, yalnız sürüm belirteci değişir (diff testi
-bunu doğrular). Aralıklar (``>=18``), ızgaralar, dinamik ifadeler ve şablonlu
-Dockerfile etikeleri asla yazılmaz — "elle düzeltilmeli" listelenir.
+Yalnızca *kesin hedefli*, satır-içi yeniden yazılabilir sabitlemeler değişir:
+hedef dosyanın yalnız ilgili satırları, yalnız sürüm belirteci değişir (diff
+testi bunu doğrular). Korunanlar:
+
+- Aralıklar (``>=18``), ``^``/``~`` gibi operatörlü değerler, ızgaralar ve
+  şablonlu Dockerfile etiketleri ASLA yazılmaz — "elle düzeltilmeli" listesi.
+- Referans sabit bir sürüm değilse (``>=22``, ``22, 24``) hiçbir şey yazılmaz.
+- Hedef dosya depo dışında kalıyorsa veya symlink'se yazılmaz (depodan çıkış
+  kapalı); ham dosya bayt düzeyinde okunur, satır sonları AYNEN korunur.
+- Aynı değerin birden çok satırı varsa TÜM konumlar yazılır.
+- Yazmadan sonra depo yeniden taranır; giderilemeyen çelişki başarı sayılmaz,
+  "elle düzeltilmeli" listesinde exit 1'e katkı koyar.
 """
 
 from __future__ import annotations
@@ -16,6 +24,7 @@ from .docker import _FROM_RE, imaj_coz
 from .karsilastir import celiski
 from .sabitleme import Sabitleme
 from .tara import kaynak_kontrol, tara
+from .versiyon import sabit_belirtec_mi
 
 __all__ = ["Degisiklik", "senkronla", "YAZILABİLİR_TÜRLER", "norm_yol"]
 
@@ -68,18 +77,25 @@ def senkronla(
     for c in celiskiler:
         hedef_deger = c.referans_ham
         for p in c.dislananlar:
-            d = _yazma_denemesi(kok, p, hedef_deger)
-            if d.gerekce:
-                elle.append(d)
+            if not sabit_belirtec_mi(hedef_deger):
+                elle.append(Degisiklik(
+                    p.dosya, p.satir or 0, p.ham, hedef_deger,
+                    f"referans {hedef_deger!r} bir aralık/ızgridir; "
+                    "sabit değere zorlanmaz"))
                 continue
-            anahtar = (d.dosya, d.satir)
-            if anahtar in hedefler:  # aynı satıra iki hedef: güvenli değil
-                hedefler[anahtar].gerekce = "aynı satırda birden fazla hedef"
-                elle.append(hedefler.pop(anahtar))
-                elle.append(Degisiklik(d.dosya, d.satir, d.eski, d.yeni,
-                                       "aynı satırda birden fazla hedef"))
-                continue
-            hedefler[anahtar] = d
+            for sat in _konumlar(p):
+                d = _yazma_denemesi(kok, p, hedef_deger, sat)
+                if d.gerekce:
+                    elle.append(d)
+                    continue
+                anahtar = (d.dosya, d.satir)
+                if anahtar in hedefler:  # aynı satıra iki hedef: güvenli değil
+                    hedefler[anahtar].gerekce = "aynı satırda birden fazla hedef"
+                    elle.append(hedefler.pop(anahtar))
+                    elle.append(Degisiklik(d.dosya, d.satir, d.eski, d.yeni,
+                                           "aynı satırda birden fazla hedef"))
+                    continue
+                hedefler[anahtar] = d
     if kuru_calis:
         return sorted(hedefler.values(), key=lambda d: (d.dosya, d.satir)), elle
     for (dosya, _satir), d in sorted(hedefler.items()):
@@ -89,12 +105,55 @@ def senkronla(
         except (OSError, ValueError) as exc:
             elle.append(Degisiklik(d.dosya, d.satir, d.eski, d.yeni,
                                    f"uygulanamadı: {exc}"))
+    _kalan_çelişkileri_raporla(kok, norm, hedefler, elle, degiskenler)
     return otomatik, elle
 
 
-def _uygula(kok: Path, d: Degisiklik, dosya: str) -> None:
+def _konumlar(p: Sabitleme) -> tuple[int | None, ...]:
+    """Yazılacak satır konumları: tekilleştirme konumları silmiş olamaz."""
+    if p.tüm_satırlar:
+        return p.tüm_satırlar
+    return (p.satir,)
+
+
+def _kalan_çelişkileri_raporla(
+    kok: Path,
+    norm: str,
+    hedefler: dict[tuple[str, int], Degisiklik],
+    elle: list[Degisiklik],
+    degiskenler: dict[str, str] | None,
+) -> None:
+    """Yazmadan sonra yeniden tarar; giderilemeyen çelişki sessiz kalmaz."""
+    if not hedefler:
+        return
+    kayıtlı = {(d.dosya, d.satir) for d in elle}
+    for c in celiski(tara(kok, degiskenler), kaynak=norm):
+        for p in c.dislananlar:
+            for sat in _konumlar(p):
+                anahtar = (p.dosya, sat if sat is not None else 0)
+                if anahtar in hedefler or anahtar in kayıtlı:
+                    continue  # zaten uygulandı ya da elle listeye alındı
+                kayıtlı.add(anahtar)
+                elle.append(Degisiklik(
+                    p.dosya, anahtar[1], p.ham, c.referans_ham,
+                    "senkron sonrası çelişki giderilmedi"))
+
+
+def _güvenli_hedef(kok: Path, dosya: str) -> Path:
+    """Depo sınırını denetler: symlink ve depo dışı yol YASAK, hedef döner."""
     tam = kok / dosya
-    icerik = tam.read_text(encoding="utf-8")
+    if tam.is_symlink():
+        raise ValueError(f"{dosya}: hedef bir dosya bağlantısı (symlink)")
+    kök = kok.resolve()
+    çözüm = tam.resolve()
+    if çözüm != kök and kök not in çözüm.parents:
+        raise ValueError(f"{dosya}: hedef depo dışında ({çözüm})")
+    return tam
+
+
+def _uygula(kok: Path, d: Degisiklik, dosya: str) -> None:
+    tam = _güvenli_hedef(kok, dosya)
+    icerik = tam.read_bytes().decode("utf-8")  # CRLF/LF AYNEN kalır
     satirlar = icerik.splitlines(keepends=True)
     i = d.satir - 1
     if i >= len(satirlar):
@@ -103,7 +162,7 @@ def _uygula(kok: Path, d: Degisiklik, dosya: str) -> None:
     if yeni_satir is None:
         raise ValueError(f"{d.eski!r} belirteci satırda tek ve bağımsız değil")
     satirlar[i] = yeni_satir
-    tam.write_text("".join(satirlar), encoding="utf-8", newline="")
+    tam.write_bytes("".join(satirlar).encode("utf-8"))
 
 
 def _token_degistir(satir: str, eski: str, yeni: str) -> str | None:
@@ -115,28 +174,31 @@ def _token_degistir(satir: str, eski: str, yeni: str) -> str | None:
     return desen.sub(lambda _: yeni, satir)
 
 
-def _yazma_denemesi(kok: Path, p: Sabitleme, hedef: str) -> Degisiklik:
-    """p sabitlemesini hedef değere çevirme planı; olmazsa notlu Degisiklik."""
-    ag = Degisiklik(p.dosya, p.satir or 0, p.ham, hedef)
+def _yazma_denemesi(
+    kok: Path, p: Sabitleme, hedef: str, satir: int | None
+) -> Degisiklik:
+    """p sabitlemesinin satır konumunu hedef değere çevirme planı."""
+    ag = Degisiklik(p.dosya, satir or 0, p.ham, hedef)
     if p.tur not in YAZILABİLİR_TÜRLER:
         ag.gerekce = f"{p.tur}: otomatik yeniden yazma desteklenmiyor"
         return ag
-    if p.satir is None:
+    if satir is None:
         ag.gerekce = "satır konumu çözülemedi"
         return ag
-    if not _sabit_mi(p):
+    if not sabit_belirtec_mi(p.ham):
         ag.gerekce = f"{p.ham!r} bir aralık/ızgara; sabit sürüme zorlanmaz"
         return ag
     try:
-        icerik = (kok / p.dosya).read_text(encoding="utf-8")
-    except OSError as exc:
+        tam = _güvenli_hedef(kok, p.dosya)
+        icerik = tam.read_bytes().decode("utf-8")
+    except (OSError, ValueError) as exc:
         ag.gerekce = f"dosya okunamadı: {exc}"
         return ag
     satirlar = icerik.splitlines()
-    if p.satir > len(satirlar):
+    if satir > len(satirlar):
         ag.gerekce = "satır numarası dosya sınırını aştı"
         return ag
-    yeni_satir = _token_degistir(satirlar[p.satir - 1], p.ham, hedef)
+    yeni_satir = _token_degistir(satirlar[satir - 1], p.ham, hedef)
     if yeni_satir is None:
         ag.gerekce = f"{p.ham!r} satırda tek ve bağımsız değil"
         return ag
@@ -144,13 +206,6 @@ def _yazma_denemesi(kok: Path, p: Sabitleme, hedef: str) -> Degisiklik:
         ag.gerekce = "Dockerfile etiketi şablonlu; yalnız sürüm bölümü güvenle değişir"
         return ag
     return ag
-
-
-def _sabit_mi(p: Sabitleme) -> bool:
-    if p.aralik is None or len(p.aralik.parcalar) != 1:
-        return False
-    parca = p.aralik.parcalar[0]
-    return parca.alt is not None and parca.ust is not None
 
 
 def _docker_gecerli(satir: str, hedef: str) -> bool:

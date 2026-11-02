@@ -1,8 +1,13 @@
 """Çelişki tespiti: aynı çalışma zamanının sabitlemelerini karşılaştırır.
 
-Referans seçimi: ``kaynak`` verilmişse o dosyanın sabitlemesi; değilse diğer
-sabitlemelerin en çoğuyla kesişen "konsensüs" sabitleme (medoid). Test
-ızgaraları (CI matrisi) referans adayı değildir, yalnız kesişim ortağıdır.
+Çelişki, KESİŞMEYEN herhangi bir sabitleme çiftidir; çelişen çiftler bir
+bileşen (graph component) olarak tek ``Celiski`` kaydında toplanır. Böylece
+referans seçimi, diğer kaynaklar arasındaki gerçek çelişkileri gizleyemez
+(``20`` hub olsa bile ``20.11.0`` ile ``20.12.0`` çelişkisi rapor edilir).
+
+Referans: ``kaynak`` verilmişse o dosyanın sabitlemesi (kaynak modunda kaynak
+sabitlemesi olmayan çalışma zamanı atlanır); değilse bileşen içinden en çok
+kesişen somut aday (medoid). Test ızgaraları referans adayı değildir.
 """
 
 from __future__ import annotations
@@ -18,38 +23,117 @@ def _kume(p: Sabitleme) -> AralikKumesi:
     return p.aralik
 
 
+def _kesisir(a: Sabitleme, b: Sabitleme) -> bool:
+    return kümeler_kesisir(_kume(a), _kume(b))
+
+
 def _somut_referans_mi(p: Sabitleme) -> bool:
     return p.aralik is not None and len(p.aralik.parcalar) == 1 and p.aralik.sabit
 
 
-def _medoid(havuz: list[Sabitleme]) -> Sabitleme:
-    """Diğer sabitlemelerin en çoğuyla kesişen aday; eşitlikte tarama sırası."""
-    en_iyi = max(
-        range(len(havuz)),
-        key=lambda i: (
-            sum(1 for q in havuz if q is not havuz[i]
-                and kümeler_kesisir(_kume(havuz[i]), _kume(q))),
-            -i,
-        ),
-    )
-    return havuz[en_iyi]
+def _çelişen_bileşenler(havuz: list[Sabitleme]) -> list[list[Sabitleme]]:
+    """Kesişmeyen çift kenarlarıyla birleşim-bul: kenarı olan bileşenler."""
+    ebeveyn = list(range(len(havuz)))
+
+    def bul(i: int) -> int:
+        while ebeveyn[i] != i:
+            ebeveyn[i] = ebeveyn[ebeveyn[i]]
+            i = ebeveyn[i]
+        return i
+
+    kenar_var = [False] * len(havuz)
+    for i in range(len(havuz)):
+        for j in range(i + 1, len(havuz)):
+            if not _kesisir(havuz[i], havuz[j]):
+                a, b = bul(i), bul(j)
+                if a != b:
+                    ebeveyn[a] = b
+                kenar_var[i] = kenar_var[j] = True
+    gruplar: dict[int, list[Sabitleme]] = {}
+    ilk_no: dict[int, int] = {}
+    for i, p in enumerate(havuz):
+        if kenar_var[i]:
+            r = bul(i)
+            ilk_no.setdefault(r, i)
+            gruplar.setdefault(r, []).append(p)
+    return [gruplar[k] for k in sorted(gruplar, key=lambda k: ilk_no[k])]
 
 
-def _referans_sec(kullanim: list[Sabitleme]) -> Sabitleme:
-    """Konsensüs referansı.
+def _kesişim_sayısı(p: Sabitleme, havuz: list[Sabitleme]) -> int:
+    return sum(1 for q in havuz if q is not p and _kesisir(p, q))
 
-    - İki+ somut sabitleme varsa: aralarından konsensüs (medoid).
-    - TEK somut sabitleme varsa ve başka beyanlar (aralık/ızgara) duruyorsa:
-      beyanlar referanstır; uymayan TEK somut sabitleme dışlanır.
-      (``>=3.10`` politikası yanında ``3.9`` sapkın olan şeydir.)
-    - Somut yoksa: tüm havuzda medoid.
+
+def _medoid(bileşen: list[Sabitleme], havuz: list[Sabitleme]) -> Sabitleme:
+    """Bileşen içinden referans adayı.
+
+    - İki+ somut aday: en çok kesişen somut (eşitlikte tarama sırası).
+      Izgaralar somut değildir (çok parçalı), referans adayı olamaz.
+    - TEK somut + başka beyanlar (aralık/ızgara) bileşende duruyorsa:
+      BEYANLAR referanstır; uymayan tek somut dışlanır
+      (``>=3.10`` politikası yanında ``3.9`` sapkın olan şeydir).
+    - Somut yoksa: bileşen geneli.
     """
-    somut = [p for p in kullanim if _somut_referans_mi(p)]
+
+    def sıra_no(p: Sabitleme) -> int:
+        for i, q in enumerate(havuz):
+            if q is p:
+                return i
+        return len(havuz)
+
+    def en_iyi(adaylar: list[Sabitleme]) -> Sabitleme:
+        return max(adaylar, key=lambda p: (_kesişim_sayısı(p, havuz), -sıra_no(p)))
+
+    somut = [p for p in bileşen if _somut_referans_mi(p)]
     if len(somut) >= 2:
-        return _medoid(somut)
-    if len(somut) == 1 and len(kullanim) > 1:
-        return _medoid([p for p in kullanim if p is not somut[0]])
-    return _medoid(kullanim)
+        return en_iyi(somut)
+    if len(somut) == 1 and len(bileşen) > 1:
+        return en_iyi([p for p in bileşen if p is not somut[0]])
+    return en_iyi(bileşen)
+
+
+def _bileşen_hedefleri(bileşen: list[Sabitleme], havuz: list[Sabitleme],
+                       kaynak: str | None) -> tuple[Sabitleme, list[Sabitleme]] | None:
+    """(referans, dışlananlar). Kaynak modunda referans kaynaktır; kaynakla
+    uyuşmayanlar dışlanır. Kaynak hiçbir şeyi dışlamıyorsa bileşen İÇİNDEKİ
+    çelişki yine rapor edilir (hub referans çelişkiyi gizleyemez)."""
+    if kaynak is not None:
+        kaynak_pimler = [p for p in havuz if p.dosya == kaynak]
+        if not any(p.dosya == kaynak for p in bileşen):
+            # bileşen kaynakla ilgili değil: yine de gerçek bir çelişkidir,
+            # otomatik mod gibi raporla (kaynak listesi hedefleri seçmez)
+            referans = _medoid(bileşen, havuz)
+            dislanan = [p for p in bileşen if p is not referans
+                        and not _kesisir(referans, p)]
+            return (referans, dislanan) if dislanan else _iç_çelişki(bileşen, havuz)
+        referans = kaynak_pimler[0]
+        ref_küme = AralikKumesi(tuple(par for p in kaynak_pimler
+                                       for par in _kume(p).parcalar))
+        dislanan = [p for p in bileşen if p.dosya != kaynak
+                    and not kümeler_kesisir(ref_küme, _kume(p))]
+        if dislanan:
+            return referans, dislanan
+        return _iç_çelişki(bileşen, havuz)
+    referans = _medoid(bileşen, havuz)
+    dislanan = [p for p in bileşen if p is not referans and not _kesisir(referans, p)]
+    if dislanan:
+        return referans, dislanan
+    return _iç_çelişki(bileşen, havuz)
+
+
+def _iç_çelişki(bileşen: list[Sabitleme],
+                havuz: list[Sabitleme]) -> tuple[Sabitleme, list[Sabitleme]] | None:
+    """Referans herkesle kesişiyor ama bileşen içinde kesişmeyen çiftler var:
+    çelişenler birbiridir — en az bağlantılı aday dışlanan olur."""
+    çelişenler = [p for p in bileşen
+                  if any(q is not p and not _kesisir(p, q) for q in bileşen)]
+    if not çelişenler:
+        return None
+    referans = _medoid(çelişenler, havuz)
+    dislanan = [p for p in çelişenler if p is not referans
+                and not _kesisir(referans, p)]
+    if not dislanan:  # aday birbirinin aynısı iki pim: ikincisi dışlanır
+        dislanan = çelişenler[1:]
+    return referans, dislanan
 
 
 def celiski(sabitlemeler: list[Sabitleme], kaynak: str | None = None) -> list[Celiski]:
@@ -62,36 +146,23 @@ def celiski(sabitlemeler: list[Sabitleme], kaynak: str | None = None) -> list[Ce
     for rt, kullanim in sorted(by_rt.items()):
         if len(kullanim) < 2:
             continue
-        if kaynak is not None:
-            ref_pimler = [p for p in kullanim if p.dosya == kaynak]
-            if not ref_pimler:
+        if kaynak is not None and not any(p.dosya == kaynak for p in kullanim):
+            continue  # kaynak modu: bu çalışma zamanında kaynak sabitlemesi yok
+        for bileşen in _çelişen_bileşenler(kullanim):
+            hedef = _bileşen_hedefleri(bileşen, kullanim, kaynak)
+            if hedef is None:
                 continue
-            ref_kume = AralikKumesi(
-                tuple(par for p in ref_pimler for par in _kume(p).parcalar)
-            )
-            referans = ref_pimler[0]
-            dislanan = [p for p in kullanim
-                        if p not in ref_pimler and not _kesisir(ref_kume, _kume(p))]
-        else:
-            referans = _referans_sec(kullanim)
-            dislanan = [p for p in kullanim if p is not referans
-                        and not kümeler_kesisir(_kume(referans), _kume(p))]
-        if not dislanan:
-            continue
-        adlar = " | ".join(f"{_kisa(p.dosya)}={p.ham}" for p in kullanim)
-        hedefler = ", ".join(p.dosya for p in dislanan)
-        sonuclar.append(Celiski(
-            calisma_zamani=rt,
-            referans_dosya=referans.dosya,
-            referans_ham=referans.ham,
-            dislananlar=dislanan,
-            mesaj=f"{rt}: {adlar} → ÇELİŞKİ: {hedefler}",
-        ))
+            referans, dislanan = hedef
+            adlar = " | ".join(f"{_kisa(p.dosya)}={p.ham}" for p in kullanim)
+            hedefler = ", ".join(p.dosya for p in dislanan)
+            sonuclar.append(Celiski(
+                calisma_zamani=rt,
+                referans_dosya=referans.dosya,
+                referans_ham=referans.ham,
+                dislananlar=dislanan,
+                mesaj=f"{rt}: {adlar} → ÇELİŞKİ: {hedefler}",
+            ))
     return sonuclar
-
-
-def _kesisir(a: AralikKumesi, b: AralikKumesi) -> bool:
-    return kümeler_kesisir(a, b)
 
 
 def _kisa(yol: str) -> str:

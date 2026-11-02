@@ -37,5 +37,8 @@ and will credit reporters unless anonymity is requested.
 
 ## Dependency policy
 
-Runtime dependency count: 0. Dev dependencies are pinned by the CI lockstep
-(`.[dev]` extra) and monitored with Dependabot.
+Runtime dependency count: 0. Dev dependencies (`pytest`, `pytest-cov`,
+`ruff`, `mypy` via the `.[dev]` extra) are intentionally **not** version
+pinned in `pyproject.toml`; CI installs their latest releases and Dependabot
+monitors the GitHub Actions. Pinning dev deps is a planned improvement, not a
+current guarantee.

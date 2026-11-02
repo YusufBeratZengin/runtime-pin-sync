@@ -78,7 +78,8 @@ vardır:
   kavga etmez).
 - `requires-python: ">=3.10"` ile `.python-version: 3.9` → **çelişki**.
 - `.nvmrc: 20` ile `FROM node:22` → **çelişki** (iki ayrı somut sürüm).
-- `3.12` ile `3.12.*` ile `3.12.1`: ön ek semantiği — `3.12`, `3.12.1`'i kapsar.
+- `3.12` ile `3.12.*` ile `3.12.1`: ön ek semantiği — `3.12`, `3.12.1`'i kapsar;
+  ancak tam belirtilmiş sürüm NOKTADIR: `20.1.0`, `>20.1.0` ile kesişmez.
 - CI **matrisi** (`[20, 22]`) bir test ızgarasıdır: üyelerinin BİRLEŞİMİ olarak
   karşılaştırılır; ızgaradaki herhangi bir değere eşit sabitleme çelişmez.
 - Desteklenen sözdizimi: düz/ön ek (`20`, `20.x`), aralıklar (`>= > <= < ==`),
@@ -100,9 +101,17 @@ runtime-pin-sync sync --kaynak .tool-versions             # sapmaları yeniden y
 `sync` bilinçli olarak muhafazakârdır:
 
 - otomatik değişiklik yalnız tek belirteçli, satırı belirli hedeflerde olur;
+  bu ancak SAPILAN ile referans değerin ikisi de düz sabit sürümse yapılır —
+  `>=`, `^`, `~`, `||` veya matris listesi içeren belirteç yazılmaz;
+  referansın kendisi sabit değilse hiçbir şey yazılmaz;
 - aralıklar (`>=18`), test ızgaraları, şablonlu etiketler (`ARG TAG`) ve tek
   anlamlı olmayan her satır **ELLE DÜZELTİLMELİ** listesine yazılır — asla
   sessizce değiştirilmez;
+- yazım hedefleri denetlenir: symlink'li dosyalara ve depo dışına çözülen
+  yollara asla dokunulmaz; dosyalar bayt düzeyinde okunup yazılır, CRLF ve
+  karışık satır sonları hedef satır dışında aynen kalır;
+- aynı sabitleme birden çok satırda geçiyorsa TÜM satırlar yazılır; yazımdan
+  sonra depo yeniden taranır, kalan çelişki başarı sayılmaz (exit 1);
 - `--dry-run` dosyaların bit bit değişmediğini garanti eder (testli).
 
 ## Kütüphane arayüzü
@@ -143,9 +152,11 @@ zinciri sürprizi çıkarmamalıdır.
   yanlış rapor yerine "okunamadı" uyarısı üretir.
 - Paket/bağımlılık sürümleri kapsam dışıdır (`renovate`/`syncpack` işi);
   derleyici/ABI sapması ve araç kurulumu da kapsam dışıdır.
-- Node `lts/*` ve `lts/<ad>` takma adları elle tutulan yerleşik bir tablodan
-  çözülür (şimdilik hydrogen→16 … krypton→24); bilinmeyen takma ad tahmin
-  edilmez, atlanır.
+- Node `lts/<ad>` takma adları elle tutulan yerleşik tablodan çözülür
+  (gallium→16, hydrogen→18, iron→20, jod→22, krypton→24; kaynak resmî
+  nodejs/Release takvimi); bilinmeyen takma ad tahmin edilmez, atlanır.
+  Hareketli `lts/*` takma adı dinamik sayılır — tablonun en yeni sayısı güncel
+  gerçek gibi sunulmaz.
 - Ön sürüm sonekleri (`1.85.0-rc1`) ve `!=` dışlama aralıkları yanlış
   karşılaştırmak yerine "okunamadı" olarak raporlanır.
 
@@ -158,4 +169,4 @@ bash scripts/check.sh    # ruff + mypy --strict + pytest --cov-fail-under=85
 
 ## Lisans
 
-MIT © 2026 YusufBeratZengin
+MIT © 2026 Yusuf Berat Zengin

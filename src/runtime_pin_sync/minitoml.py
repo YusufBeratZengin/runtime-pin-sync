@@ -1,8 +1,11 @@
 """TOML okuma: ``tomllib`` varsa o, yoksa (Python 3.10) mini bir yedek.
 
-Yedek ayrıştırıcı yalnız ``[tablo]`` başlıkları ve ``anahtar = "metin"``
-satırlarını tanır — projemizin okuduğu ``mise.toml``, ``rust-toolchain.toml``
-ve ``pyproject.toml`` alanları için yeterli. Biçim bozuksa ``ValueError``.
+Yedek ayrıştırıcı ``[tablo]`` ve ``[[dizi.tablo]]`` başlıkları ile
+``anahtar = "metin"`` satırlarını ve ÇOK SATIRLI dizi/tablo değerlerini tanır
+(``keywords = [`` ile başlayıp ``]`` ile biten) — projemizin okuduğu
+``mise.toml``, ``rust-toolchain.toml`` ve tipik ``pyproject.toml`` dosyaları
+(içlerinde ``requires-python`` varsa) bu yolla çözülebilir. Biçim bozuksa
+``ValueError``.
 """
 
 from __future__ import annotations
@@ -31,9 +34,16 @@ def oku(veri: bytes) -> dict[str, Any]:
 def mini_ayristir(metin: str) -> dict[str, Any]:
     sonuc: dict[str, Any] = {}
     aktif: dict[str, Any] = sonuc
-    for no, ham in enumerate(metin.splitlines(), start=1):
-        govde = _yorum_temizle(ham.strip())
+    ham_satirlar = metin.splitlines()
+    i = 0
+    while i < len(ham_satirlar):
+        no = i + 1
+        govde = _yorum_temizle(ham_satirlar[i].strip())
+        i += 1
         if not govde:
+            continue
+        if govde.startswith("[[") and govde.endswith("]]"):
+            aktif = _dizi_tablo(sonuc, govde[2:-2].strip().strip('"'), no)
             continue
         if govde.startswith("[") and govde.endswith("]"):
             ad = govde[1:-1].strip().strip('"')
@@ -50,8 +60,52 @@ def mini_ayristir(metin: str) -> dict[str, Any]:
         if not m:
             raise ValueError(f"mini TOML: çözülemeyen satır {no}: {govde!r}")
         anahtar = m.group(1).strip('"')
-        aktif[anahtar] = _deger(m.group(2).strip())
+        deger = m.group(2).strip()
+        # çok satırlı dizi/tablo: "[ ... satır satır ... ]" kapanana kadar topla
+        while not _dengede(deger) and i < len(ham_satirlar):
+            ek = _yorum_temizle(ham_satirlar[i].strip())
+            i += 1
+            if ek:
+                deger = f"{deger} {ek}"
+        if not _dengede(deger):
+            raise ValueError(f"mini TOML: kapanmamış dizi/tablo (satır {no})")
+        aktif[anahtar] = _deger(deger)
     return sonuc
+
+
+def _dizi_tablo(sonuc: dict[str, Any], ad: str, no: int) -> dict[str, Any]:
+    """[[a.b]] bloğu: listesizse açar, yeni sözlük ekler, ona bağlar."""
+    if "[" in ad or "]" in ad:
+        raise ValueError(f"mini TOML: desteklenmeyen tablo başlığı (satır {no})")
+    parcalar = ad.split(".")
+    hedef: Any = sonuc
+    for parca in parcalar[:-1]:
+        hedef = hedef.setdefault(parca, {})
+        if not isinstance(hedef, dict):
+            raise ValueError(f"mini TOML: çakışan anahtar (satır {no})")
+    liste = hedef.setdefault(parcalar[-1], [])
+    if not isinstance(liste, list):
+        raise ValueError(f"mini TOML: çakışan anahtar (satır {no})")
+    yeni: dict[str, Any] = {}
+    liste.append(yeni)
+    return yeni
+
+
+def _dengede(deger: str) -> bool:
+    """Tırnak dışı [ { kapanmış mı? (çok satırlı değer tespiti)"""
+    derinlik = 0
+    tirnak = ""
+    for ch in deger:
+        if tirnak:
+            if ch == tirnak:
+                tirnak = ""
+        elif ch in "\"'":
+            tirnak = ch
+        elif ch in "[{":
+            derinlik += 1
+        elif ch in "]}":
+            derinlik -= 1
+    return derinlik <= 0
 
 
 def _yorum_temizle(govde: str) -> str:
@@ -79,10 +133,44 @@ def _deger(ham: str) -> Any:
         icerik = ham[1:-1].strip()
         if not icerik:
             return []
-        return [_deger(p.strip()) for p in icerik.split(",")]
+        return [_deger(p.strip()) for p in _virgül_ayır(icerik)]
+    if ham.startswith("{") and ham.endswith("}"):
+        return {k.strip().strip('"'): _deger(v.strip())
+                for k, _, v in (öğ.partition("=") for öğ in _virgül_ayır(ham[1:-1])
+                                if "=" in öğ)}
     if ham in ("true", "false"):
         return ham == "true"
     try:
         return int(ham)
     except ValueError:
         return ham
+
+
+def _virgül_ayır(icerik: str) -> list[str]:
+    """Üst düzey virgüllerle böl: tırnak ve iç içe [ { virgülleri yutulmaz."""
+    ögeler: list[str] = []
+    tampon = ""
+    derinlik = 0
+    tirnak = ""
+    for ch in icerik:
+        if tirnak:
+            tampon += ch
+            if ch == tirnak:
+                tirnak = ""
+            continue
+        if ch in "\"'":
+            tirnak = ch
+            tampon += ch
+            continue
+        if ch in "[{":
+            derinlik += 1
+        elif ch in "]}":
+            derinlik -= 1
+        if ch == "," and derinlik == 0:
+            ögeler.append(tampon)
+            tampon = ""
+        else:
+            tampon += ch
+    if tampon.strip():
+        ögeler.append(tampon)
+    return ögeler

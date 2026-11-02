@@ -36,9 +36,13 @@ jobs:
         run: python -m runtime_pin_sync.cli ornek-depolar/tutarli
       - name: Kod kokusu kendi kendine test (örnek uyumsuz depo → 1)
         shell: bash
-        # uyumsuz Depo BİLEREK çelişkili; exit kodu 1 olmalı
+        # uyumsuz Depo BİLEREK çelişkili; çıkış kodu TAM 1 olmalı
+        # (kullanım hatası 2 / çökme ≠1 geçmesin)
         run: |
+          set +e
+          python -m runtime_pin_sync.cli ornek-depolar/uyumsuz
+          rc=$?
           set -e
-          if python -m runtime_pin_sync.cli ornek-depolar/uyumsuz; then
-            echo "BEKLENEN: çelişki nedeniyle başarısızlık"; exit 1
+          if [ "$rc" -ne 1 ]; then
+            echo "BEKLENEN çıkış kodu 1, ALINAN $rc"; exit 1
           fi

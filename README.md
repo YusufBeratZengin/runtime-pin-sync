@@ -84,7 +84,9 @@ sets are disjoint:
 - `engines.node: ">=18"` vs `.nvmrc: 20` → **fine** (ranges don't fight pins).
 - `requires-python: ">=3.10"` vs `.python-version: 3.9` → **conflict**.
 - `.nvmrc: 20` vs `FROM node:22` → **conflict** (two concrete majors).
-- `3.12` vs `3.12.*` vs `3.12.1` — prefix semantics: `3.12` covers `3.12.1`.
+- `3.12` vs `3.12.*` vs `3.12.1` — prefix semantics: `3.12` covers `3.12.1`,
+  but a fully specified version is a point: `20.1.0` does **not** intersect
+  `>20.1.0` (it excludes itself from that range).
 - CI **matrix** (`[20, 22]`) is a test grid: it is compared as the *union* of
   its entries, so a pin equal to any grid member never conflicts.
 - Supported spec syntax: plain/prefix (`20`, `20.x`), ranges (`>= > <= < ==`),
@@ -105,10 +107,19 @@ runtime-pin-sync sync --kaynak .tool-versions             # rewrite outliers
 
 `sync` is deliberately conservative:
 
-- only single-token, line-anchored replacements happen automatically;
+- only single-token, line-anchored replacements happen automatically, and
+  only when BOTH the outlier and the reference value are plain fixed versions
+  (no `>=`, `^`, `~`, `||`, no matrix lists); a range/grid reference disables
+  automatic writes entirely;
 - ranges (`>=18`), test grids, template expressions (`ARG TAG`-style tags) and
   any line where a replacement would be ambiguous are listed under
   **ELLE DÜZELTİLMELİ** (needs manual edit) — never rewritten;
+- write targets are audited: symlinked files and paths resolving outside the
+  repository are never touched; files are read/written byte-wise so CRLF and
+  mixed line endings survive untouched outside the target line;
+- when a pinned value occurs on several lines, ALL occurrences are rewritten;
+  after writing, the repo is rescanned and any surviving conflict is reported
+  (exit 1), never silently counted as success;
 - `--dry-run` guarantees byte-identical files (verified by tests).
 
 ## Library API
@@ -149,9 +160,11 @@ supply-chain-surprise you.
   "okunamadı" warning instead of a false report.
 - Package/dependency versions are out of scope (that's `renovate` /
   `syncpack`); so are compiler/ABI drift and tool installation.
-- Node `lts/*` and `lts/<codename>` resolve via a built-in, manually kept
-  table (currently hydrogen→16 … krypton→24); unknown aliases are skipped,
-  never guessed.
+- Node `lts/<codename>` resolves via a built-in, manually kept table
+  (gallium→16, hydrogen→18, iron→20, jod→22, krypton→24, per the official
+  nodejs/Release schedule); unknown aliases are skipped, never guessed.
+  The moving alias `lts/*` is treated as *dynamic* — the table's newest entry
+  is not presented as a current fact.
 - Prerelease suffixes (`1.85.0-rc1`) and `!=` exclusion ranges are reported
   as "okunamadı" rather than mis-compared.
 
@@ -164,4 +177,4 @@ bash scripts/check.sh    # ruff + mypy --strict + pytest --cov-fail-under=85
 
 ## License
 
-MIT © 2026 YusufBeratZengin
+MIT © 2026 Yusuf Berat Zengin
