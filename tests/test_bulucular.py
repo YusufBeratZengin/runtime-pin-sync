@@ -88,6 +88,27 @@ def test_go_mod():
                                                 ("gomod-toolchain", "1.22.5")]
 
 
+def test_go_directifi_minimum_gereksinimdir_toolchain_ile_çelişmez():
+    # go.dev/doc/modules/gomod-ref#go: `go` = minimum, toolchain daha yeni OLUR.
+    icerik = "module x\n\ngo 1.22\n\ntoolchain go1.23.1\n"
+    pimler = go.gomod("go.mod", icerik)
+    assert all(p.kullanilabilir for p in pimler)
+    from runtime_pin_sync import celiski
+    assert celiski(list(pimler)) == []
+    gomod_pim = pimler[0]
+    assert gomod_pim.aralik is not None
+    assert not gomod_pim.aralik.sabit  # açık üst uç: sabitleme/referans değil
+
+
+def test_go_minimum_toolchain_altında_ise_çelişkidir():
+    # go 1.24 = minimum gereksinim; toolchain go1.23.1 bunun ALTINDA → gerçek
+    # çelişki raporlanır (araç bu dosyayla 1.23'ü hiç çalıştıramaz).
+    icerik = "module x\n\ngo 1.24\n\ntoolchain go1.23.1\n"
+    pimler = go.gomod("go.mod", icerik)
+    from runtime_pin_sync import celiski
+    assert len(celiski(list(pimler))) == 1
+
+
 def test_go_mod_satirsiz():
     (p,) = go.gomod("go.mod", "module x\n")
     assert p.durum == "okunamadı"
@@ -119,6 +140,21 @@ def test_rust_toml():
     assert t.durum == "okunamadı"
     (e,) = rust.kanal_dosyasi("rust-toolchain", "\n")
     assert e.durum == "okunamadı"
+
+
+def test_rust_ön_sürüm_kararlıya_çevrilmez():
+    # 1.85.0-rc1 KULLANILABİLİR 1.85.0 OLAMAZ: karşılaştırmaya girmez, uyarır.
+    (p,) = rust.kanal_dosyasi("rust-toolchain", "1.85.0-rc1\n")
+    assert p.ham == "1.85.0-rc1"
+    assert not p.kullanilabilir and not p.aralik
+    assert p.uyari and "ön sürüm" in p.uyari
+    (q,) = rust.kanal_toml("rust-toolchain.toml",
+                           '[toolchain]\nchannel = "1.85.0-beta.3"\n')
+    assert q.ham == "1.85.0-beta.3" and not q.kullanilabilir
+    # hedef üçlüsü ise eskisi gibi sürüme indirgenir:
+    (t,) = rust.kanal_dosyasi("rust-toolchain",
+                              "1.84.0-aarch64-apple-darwin\n")
+    assert t.ham == "1.84.0" and t.kullanilabilir
 
 
 def test_java():

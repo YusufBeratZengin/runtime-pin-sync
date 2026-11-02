@@ -72,10 +72,19 @@ def test_dockerfile_varyantları(tmp_path):
 
 
 def test_tekrarlar_tekilleştirilir(tmp_path):
-    # aynı ham değer, aynı dosya/tür: tek sabitleme
+    # aynı ham değer, aynı dosya/tür: tek sabitleme — ama KONUMLAR KAYBOLMAZ
     yaz(tmp_path, ".tool-versions", "node 20\nnodejs 20\n")
     pimler = [p for p in tara(tmp_path) if p.calisma_zamani == "node"]
     assert len(pimler) == 1
+    assert pimler[0].satir == 1
+    assert pimler[0].tüm_satırlar == (1, 2)
+
+
+def test_iki_from_satırı_konum_kaybetmez(tmp_path):
+    yaz(tmp_path, "Dockerfile", "FROM node:22 AS a\nRUN x\nFROM node:22 AS b\n")
+    (p,) = [p for p in tara(tmp_path) if p.calisma_zamani == "node"]
+    assert p.ham == "22"
+    assert p.tüm_satırlar == (1, 3)
 
 
 def test_okuma_hatasi_uyariya_döner(tmp_path, monkeypatch):

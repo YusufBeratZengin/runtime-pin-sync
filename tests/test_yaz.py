@@ -113,3 +113,124 @@ def test_norm_yol():
     assert norm_yol("./.tool-versions") == ".tool-versions"
     assert norm_yol("alt\\.nvmrc") == "alt/.nvmrc"
     assert norm_yol("/x") == "x"
+
+
+# --- regresyon: yanlış alanı yazma (node.py / ci.py konum tuzakları) ----------
+
+def test_engines_karıştıran_package_json_doğru_satırı_yazar(tmp_path):
+    # dependencies.node da "22": eskiden ilk eşleşme (dependencies) seçilirdi.
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, "package.json",
+        '{\n  "dependencies": {"node": "22"},\n  "engines": {"node": "22"}\n}\n')
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+    assert elle == []
+    assert {d.satir for d in otomatik} == {3}       # engines satırı
+    icerik = (tmp_path / "package.json").read_text(encoding="utf-8")
+    assert '"dependencies": {"node": "22"}' in icerik   # BAĞIMLILIK DOKUNULMADI
+    assert '"engines": {"node": "20.11.0"}' in icerik
+
+
+def test_ci_ad_satırı_yanılır_sync_gerçek_girdiyi_yazar(tmp_path):
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, ".github/workflows/ci.yml",
+        "jobs:\n  t:\n    steps:\n"
+        "      - name: node-version 22 installation\n"
+        "      - uses: actions/setup-node@v4\n"
+        "        with:\n          node-version: 22\n")
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+    assert elle == []
+    assert otomatik and {d.satir for d in otomatik if d.dosya.endswith("ci.yml")} == {7}
+    satirlar = (tmp_path / ".github/workflows/ci.yml").read_text(
+        encoding="utf-8").splitlines()
+    assert satirlar[3] == "      - name: node-version 22 installation"
+    assert satirlar[6] == "          node-version: 20.11.0"
+
+
+# --- regresyon: depo dışına yazma / symlink -----------------------------------
+
+def test_symlink_hedef_depo_dışına_yazılmaz(tmp_path):
+    try:
+        (tmp_path / "harici.txt").write_text("22\n", encoding="utf-8")
+        depo = tmp_path / "depo"
+        depo.mkdir()
+        (depo / ".tool-versions").write_text("node 20.11.0\n", encoding="utf-8")
+        (depo / ".nvmrc").symlink_to(tmp_path / "harici.txt")
+    except OSError:  # Windows: symlink hakkı yoksa atla
+        import pytest
+        pytest.skip("symlink desteklenmiyor")
+    otomatik, elle = senkronla(depo, ".tool-versions", False)
+    assert otomatik == []
+    assert elle and "symlink" in elle[0].gerekce
+    assert (tmp_path / "harici.txt").read_text(encoding="utf-8") == "22\n"
+
+
+# --- regresyon: aralık/matris güvenliği ---------------------------------------
+
+def test_hedef_carret_22_sabit_sayılıp_yazılmaz(tmp_path):
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, "package.json", '{"engines": {"node": "^22"}}\n')
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
+    assert otomatik == []
+    assert elle[0].dosya == "package.json"
+    assert "aralık" in elle[0].gerekce
+
+
+def test_kaynak_aralık_ise_hiçbir_şey_yazılmaz(tmp_path):
+    # kaynak >=22; .nvmrc 20 dışlanır — eski kod .nvmrc'ye ">=22" yazıyordu.
+    yaz(tmp_path, ".tool-versions", "node >=22\n")
+    yaz(tmp_path, ".nvmrc", "20\n")
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+    assert otomatik == []
+    assert elle and "aralık" in elle[0].gerekce
+    assert (tmp_path / ".nvmrc").read_text(encoding="utf-8") == "20\n"
+
+
+def test_kaynak_matris_ise_ifade_yazılmaz(tmp_path):
+    yaz(tmp_path, ".github/workflows/ci.yml",
+        "jobs:\n  t:\n    strategy:\n      matrix:\n"
+        "        node-version: [22, 24]\n")
+    yaz(tmp_path, ".nvmrc", "20\n")
+    otomatik, elle = senkronla(tmp_path, ".github/workflows/ci.yml", False)
+    assert otomatik == []
+    assert elle and "ızgara" in elle[0].gerekce
+    assert (tmp_path / ".nvmrc").read_text(encoding="utf-8") == "20\n"
+
+
+# --- regresyon: tekilleştirme konum kaybedemez --------------------------------
+
+def test_aynı_değer_iki_satır_da_da_değişir(tmp_path):
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, "Dockerfile",
+        "FROM node:22 AS a\nRUN echo x\nFROM node:22 AS b\n")
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+    assert elle == []
+    satirlar = (tmp_path / "Dockerfile").read_text(encoding="utf-8").splitlines()
+    assert satirlar[0] == "FROM node:20.11.0 AS a"
+    assert satirlar[2] == "FROM node:20.11.0 AS b"   # İKİNCİ satır da
+    from runtime_pin_sync import celiski as _c
+    from runtime_pin_sync import tara as _t
+    assert _c(_t(tmp_path)) == []
+
+
+def test_kalan_çelişki_başarı_sunulmaz(tmp_path, monkeypatch):
+    # _uygula sessizce hiçbir şey yapmazsa (kurgusal yazıcı hatası) sync
+    # "temiz" DÖNMEZ: yeniden tarama kalan çelişkiyi elle listeye ekler.
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, ".nvmrc", "22\n")
+    from runtime_pin_sync import yaz as yaz_modul
+    monkeypatch.setattr(yaz_modul, "_uygula", lambda *_: None)
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+    assert elle and any("senkron sonrası" in d.gerekce for d in elle)
+
+
+# --- regresyon: satır sonları bayt düzeyinde korunur ---------------------------
+
+def test_crlf_karışık_satır_sonları_korunur(tmp_path):
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    (tmp_path / ".nvmrc").write_bytes(b"22\r\n")
+    (tmp_path / "Dockerfile").write_bytes(
+        b"FROM node:22 AS a\r\nWORKDIR /app\nRUN x\r\n")
+    senkronla(tmp_path, ".tool-versions", False)
+    assert (tmp_path / ".nvmrc").read_bytes() == b"20.11.0\r\n"
+    assert (tmp_path / "Dockerfile").read_bytes() == (
+        b"FROM node:20.11.0 AS a\r\nWORKDIR /app\nRUN x\r\n")

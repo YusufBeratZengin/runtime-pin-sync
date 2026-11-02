@@ -95,3 +95,32 @@ def test_kaynak_ızgarası_somut_uyelerle_kesisir():
     (c,) = celiski(pimler, kaynak=".mise")
     assert c.referans_dosya == ".mise"
     assert [x.dosya for x in c.dislananlar] == [".nvmrc"]
+
+
+# --- regresyon: referans seçimi gerçek çelişkileri GİZLEYEMEZ -----------------
+
+def test_hub_sabitleme_iki_kardeş_çelişkisini_gizlemez():
+    # "20" ikisiyle de kesişen hub; 20.11.0 ile 20.12.0 BİRBİRİYLE çelişir.
+    pimler = [p_("node", ".nvmrc", "20"), p_("node", ".tool-versions", "20.11.0"),
+              p_("node", "Dockerfile", "20.12.0")]
+    (c,) = celiski(pimler)
+    assert len(c.dislananlar) == 1
+    assert c.dislananlar[0].ham == "20.12.0"
+
+
+def test_hub_aralık_kardeş_çelişkisini_gizlemez_kaynak_modunda():
+    pimler = [p_("node", ".mise", "20"), p_("node", "a", "20.11.0"),
+              p_("node", "b", "20.12.0")]
+    (c,) = celiski(pimler, kaynak=".mise")
+    assert c.dislananlar, "hub kaynak, kardeş çelişkisini silemez"
+    assert {p.ham for p in c.dislananlar} == {"20.12.0"}
+
+
+def test_uyumlu_görünen_hub_aralık_çelişkiyi_gizlemez():
+    # >=18 hepsiyle kesişir; ama 20 ile <20 GERÇEKTEN çelişir.
+    pimler = [p_("node", "a", ">=18"), p_("node", "b", "20"),
+              p_("node", "c", "<20")]
+    celiskiler = celiski(pimler)
+    assert len(celiskiler) == 1
+    (c,) = celiskiler
+    assert {p.dosya for p in c.dislananlar} | {c.referans_dosya} == {"b", "c"}

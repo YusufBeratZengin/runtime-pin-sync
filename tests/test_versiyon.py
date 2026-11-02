@@ -106,6 +106,32 @@ def test_v_oneki_ve_build_meta():
     assert kesis("17.0.2+8", "17.0.2")
 
 
+# --- regresyon: tam sürüm NOKTA, önek aralıktır -------------------------------
+
+def test_tam_sürüm_kendi_dışındaki_aralık_ile_kesişmez():
+    # 20.1.0 tam sabitlemedir; ">20.1.0" onu DIŞLAR → kesişim OLMAMALI.
+    assert not kesis("20.1.0", ">20.1.0")
+    assert not kesis("20.1.0", "<20.1.0")
+    assert kesis("20.1.0", ">=20.1.0")   # >= kendi noktasını kapsar
+    assert kesis("20.1.0", "<=20.1.0")
+    assert not kesis("20.1.0", "==20.1.1")
+
+
+def test_ön_ek_aralığı_noktayı_kapsar():
+    # "20" önektir: 20.1.0 onun İÇİNDEDİR, >20.1.0 ile de kesişir.
+    assert kesis("20", ">20.1.0")
+    assert kesis("20", "20.1.0")
+
+
+def test_sabit_belirtec_mi_sözlüğü():
+    from runtime_pin_sync.versiyon import sabit_belirtec_mi
+    for iyi in ("20", "20.11.0", "v22", "20.x", "17.0.2+8", "3.12"):
+        assert sabit_belirtec_mi(iyi), iyi
+    for kötü in ("", ">=22", "^22", "~20.1", "22 || 24", "22, 24",
+                 "lts/iron", "stable", "20 - 22", "!=20"):
+        assert not sabit_belirtec_mi(kötü), kötü
+
+
 # --- çözülemeyen girdiler ------------------------------------------------------
 
 @pytest.mark.parametrize("bozuk", [

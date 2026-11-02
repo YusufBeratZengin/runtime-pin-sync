@@ -80,8 +80,8 @@ def senkronla(
             if not sabit_belirtec_mi(hedef_deger):
                 elle.append(Degisiklik(
                     p.dosya, p.satir or 0, p.ham, hedef_deger,
-                    f"referans {hedef_deger!r} bir aralık/ızgridir; "
-                    "sabit değere zorlanmaz"))
+                    f"referans {hedef_deger!r} sabit sürüm değil "
+                    "(aralık/ızgara); yazılmaz"))
                 continue
             for sat in _konumlar(p):
                 d = _yazma_denemesi(kok, p, hedef_deger, sat)
@@ -105,7 +105,7 @@ def senkronla(
         except (OSError, ValueError) as exc:
             elle.append(Degisiklik(d.dosya, d.satir, d.eski, d.yeni,
                                    f"uygulanamadı: {exc}"))
-    _kalan_çelişkileri_raporla(kok, norm, hedefler, elle, degiskenler)
+    _kalan_çelişkileri_raporla(kok, norm, elle, degiskenler)
     return otomatik, elle
 
 
@@ -119,20 +119,21 @@ def _konumlar(p: Sabitleme) -> tuple[int | None, ...]:
 def _kalan_çelişkileri_raporla(
     kok: Path,
     norm: str,
-    hedefler: dict[tuple[str, int], Degisiklik],
     elle: list[Degisiklik],
     degiskenler: dict[str, str] | None,
 ) -> None:
-    """Yazmadan sonra yeniden tarar; giderilemeyen çelişki sessiz kalmaz."""
-    if not hedefler:
-        return
+    """Yazmadan sonra yeniden tarar; giderilemeyen çelişki sessiz kalmaz.
+
+    Başarıyla yazılmış pim yeniden taramada artık dışlanmaz; burada hâlâ
+    dışlanıyorsa yazım hiç uygulanmamış demektir — asla "temiz" sayılmaz.
+    """
     kayıtlı = {(d.dosya, d.satir) for d in elle}
     for c in celiski(tara(kok, degiskenler), kaynak=norm):
         for p in c.dislananlar:
             for sat in _konumlar(p):
                 anahtar = (p.dosya, sat if sat is not None else 0)
-                if anahtar in hedefler or anahtar in kayıtlı:
-                    continue  # zaten uygulandı ya da elle listeye alındı
+                if anahtar in kayıtlı:
+                    continue  # elle listesi zaten bunu bildiriyor
                 kayıtlı.add(anahtar)
                 elle.append(Degisiklik(
                     p.dosya, anahtar[1], p.ham, c.referans_ham,

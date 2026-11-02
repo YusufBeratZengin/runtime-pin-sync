@@ -157,6 +157,61 @@ jobs:
     assert pimler[0].calisma_zamani == "rust" and pimler[0].ham == "1.85.0"
 
 
+def test_rust_toolchain_sadece_ref_ise_referans_okunur():
+    # with.toolchain OLMADAN sessizce kaybolamaz: uses ref'i okunur.
+    icerik = """
+jobs:
+  t:
+    steps:
+      - uses: dtolnay/rust-toolchain@1.85.0
+"""
+    (p,) = is_aksi("w/c.yml", icerik)
+    assert p.calisma_zamani == "rust" and p.ham == "1.85.0"
+    assert p.kullanilabilir and p.satir == 5   # uses satırı (1: boş satır)
+
+
+def test_rust_toolchain_kanal_ref_uyarı_üretir_sessiz_değil():
+    icerik = """
+jobs:
+  t:
+    steps:
+      - uses: dtolnay/rust-toolchain@nightly
+"""
+    (p,) = is_aksi("w/c.yml", icerik)
+    assert p.durum == "okunamadı"  # açık uyarı: sürüm çözümlenemedi
+
+
+def test_girdi_satırı_bulucu_ad_satırına_kanmaz():
+    icerik = """
+jobs:
+  t:
+    steps:
+      - name: node-version 22 installation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+"""
+    (p,) = is_aksi("w/c.yml", icerik)
+    assert p.ham == "20" and p.satir == 8   # gerçek girdi satırı, ad değil
+
+
+def test_version_file_özel_adlı_ise_içeriği_okunur(tmp_path):
+    # .nvmrc olmayan özel adlı sürüm dosyası: YALNIZ varlığı değil, İÇERİĞİ okunur.
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "nodemiz").write_text("20\n", encoding="utf-8")
+    icerik = """
+jobs:
+  t:
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ci/nodemiz
+"""
+    pimler = is_aksi("w/c.yml", icerik, {}, str(tmp_path))
+    assert [(p.dosya, p.ham, p.tur) for p in pimler] == [("ci/nodemiz", "20", "ci-dosya")]
+    assert pimler[0].kullanilabilir
+
+
 def test_step_listesi_ve_sablon_listesi():
     icerik = """
 jobs:

@@ -117,3 +117,32 @@ def test_mini_toml_çakışan_anahtar():
 def test_mini_toml_tırnak_içi_yorum():
     veri = minitoml.mini_ayristir('a = "#x" # gerçek yorum\n')
     assert veri["a"] == "#x"
+
+
+def test_mini_toml_çok_satırlı_dizi():
+    veri = minitoml.mini_ayristir(
+        'keywords = [\n  "bir", "iki",   # yorum\n  "üç",\n]\nsonraki = 1\n')
+    assert veri["keywords"] == ["bir", "iki", "üç"]
+    assert veri["sonraki"] == 1
+
+
+def test_mini_toml_kendi_pyproject_310_yedeğinde():
+    # Yedek ayrıştırıcı projemizin KENDİ pyproject.toml'unu (çok satırlı
+    # keywords + [[dizi.tablo]]) reddetmemeli: requires-python kaybolmamalı.
+    from pathlib import Path
+    metin = (Path(__file__).resolve().parent.parent
+             / "pyproject.toml").read_text(encoding="utf-8")
+    veri = minitoml.mini_ayristir(metin)
+    assert veri["project"]["requires-python"] == ">=3.10"
+    assert "devtools" in veri["project"]["keywords"]
+    assert veri["project"]["authors"][0]["name"]
+
+
+def test_pyproject_310_yedeği_bulucuya_kadar_ulaşır(monkeypatch):
+    from runtime_pin_sync import minitoml
+    from runtime_pin_sync.bulucular import python
+    monkeypatch.setattr(minitoml, "_tomllib", None)  # 3.10 yolu: mini yedek
+    içerik = ('[project]\nname = "x"\nkeywords = [\n  "a",\n  "b",\n]\n'
+              'requires-python = ">=3.10"\n')
+    (p,) = python.pyproject("pyproject.toml", içerik)
+    assert p.ham == ">=3.10" and p.kullanilabilir
