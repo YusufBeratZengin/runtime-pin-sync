@@ -130,8 +130,8 @@ def _tek_kisit(op: str, v: _T, yildiz: bool) -> Aralik:
         return Aralik(ust=v, ust_kapsar=True)
     if op == "<":
         return Aralik(ust=v, ust_kapsar=False)
-    if op in ("~", "~>"):  # semver ~ : ~20.1 -> [20.1, 20.2)
-        ust = _sonraki(v[:-1]) if len(v) > 1 else _sonraki(v)
+    if op in ("~", "~>"):  # semver ~ : ~20.1 -> [20.1, 20.2); ~20.1.5 -> [20.1.5, 20.2)
+        ust = _sonraki(v[:2]) if len(v) >= 3 else _sonraki(v)
         return Aralik(alt=v, alt_kapsar=True, ust=ust, ust_kapsar=False)
     if op == "~=":  # PEP 440 compatible: ~=3.12.1 -> [3.12.1, 3.13)
         if len(v) < 2:

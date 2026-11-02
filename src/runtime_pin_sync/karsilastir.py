@@ -22,17 +22,34 @@ def _somut_referans_mi(p: Sabitleme) -> bool:
     return p.aralik is not None and len(p.aralik.parcalar) == 1 and p.aralik.sabit
 
 
-def _referans_sec(kullanim: list[Sabitleme]) -> Sabitleme:
-    """En çok sabitlemeyle kesişen aday; eşitlikte tarama sırasındaki ilk."""
-    adaylar = [p for p in kullanim if _somut_referans_mi(p)] or kullanim
+def _medoid(havuz: list[Sabitleme]) -> Sabitleme:
+    """Diğer sabitlemelerin en çoğuyla kesişen aday; eşitlikte tarama sırası."""
     en_iyi = max(
-        range(len(adaylar)),
+        range(len(havuz)),
         key=lambda i: (
-            sum(1 for q in kullanim if q is not adaylar[i] and kümeler_kesisir(_kume(adaylar[i]), _kume(q))),
+            sum(1 for q in havuz if q is not havuz[i]
+                and kümeler_kesisir(_kume(havuz[i]), _kume(q))),
             -i,
         ),
     )
-    return adaylar[en_iyi]
+    return havuz[en_iyi]
+
+
+def _referans_sec(kullanim: list[Sabitleme]) -> Sabitleme:
+    """Konsensüs referansı.
+
+    - İki+ somut sabitleme varsa: aralarından konsensüs (medoid).
+    - TEK somut sabitleme varsa ve başka beyanlar (aralık/ızgara) duruyorsa:
+      beyanlar referanstır; uymayan TEK somut sabitleme dışlanır.
+      (``>=3.10`` politikası yanında ``3.9`` sapkın olan şeydir.)
+    - Somut yoksa: tüm havuzda medoid.
+    """
+    somut = [p for p in kullanim if _somut_referans_mi(p)]
+    if len(somut) >= 2:
+        return _medoid(somut)
+    if len(somut) == 1 and len(kullanim) > 1:
+        return _medoid([p for p in kullanim if p is not somut[0]])
+    return _medoid(kullanim)
 
 
 def celiski(sabitlemeler: list[Sabitleme], kaynak: str | None = None) -> list[Celiski]:

@@ -23,7 +23,8 @@ def gomod(dosya: str, icerik: str) -> list[Sabitleme]:
             continue
         m = _TOOLCHAIN_RE.match(t)
         if m:
-            sonuc.append(pin("go", dosya, "gomod-toolchain", m.group(1), satir=i))
+            sonuc.append(pin("go", dosya, "gomod-toolchain",
+                             m.group(1).removeprefix("go"), satir=i))
     if not sonuc:
         sonuc.append(Sabitleme("go", dosya, "gomod", "",
                                uyari="okunamadı: go.mod içinde 'go' satırı yok"))

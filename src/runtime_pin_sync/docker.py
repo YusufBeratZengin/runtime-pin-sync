@@ -116,7 +116,7 @@ def devcontainer(dosya: str, icerik: str) -> list[Sabitleme]:
         cz, surum = imaj_coz(ad, etiket)
         if cz:
             if surum:
-                sonuc.append(Sabitleme(cz, dosya, "devcontainer", surum, satir=None))
+                sonuc.append(pin(cz, dosya, "devcontainer", surum))
             else:
                 sonuc.append(Sabitleme(cz, dosya, "devcontainer", etiket or "(etiketsiz)",
                                        dinamik=True, satir=None))
@@ -138,7 +138,7 @@ def devcontainer(dosya: str, icerik: str) -> list[Sabitleme]:
                 sonuc.append(Sabitleme(cz, dosya, "devcontainer-feature",
                                        surum or "(varsayılan)", dinamik=True))
             else:
-                sonuc.append(Sabitleme(cz, dosya, "devcontainer-feature", surum))
+                sonuc.append(pin(cz, dosya, "devcontainer-feature", surum))
     return sonuc
 
 
