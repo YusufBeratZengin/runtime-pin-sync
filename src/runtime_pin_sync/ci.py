@@ -52,6 +52,21 @@ def is_aksi(
     degiskenler: dict[str, str] | None = None,
     depo_koku: str = "",
 ) -> list[Sabitleme]:
+    """GitHub Actions iş akışını (YAML) ayrıştırıp sürüm sabitlemelerini çıkarır.
+
+    Ayrıştırma, sıfır bağımlılık ilkesi gereği ``miniyaml.ayristir`` ile yapılır.
+    Desteklenen alt küme:
+      - İç içe eşlemeler (ör. ``jobs.<id>.steps``, ``strategy.matrix``)
+      - Blok diziler (``- uses: ...``) ve akış dizileri (``[20, 22]``)
+      - Düz, tek tırnaklı ve çift tırnaklı skalerler, blok metinleri (``|``, ``>``)
+      - Yorumlar (``#``)
+
+    Desteklenmeyen yapılar (YAML çıpaları/takma adları ``&``/``*``, birleştirme
+    anahtarları ``<<``, özel etiketler ``!``) karşılaşıldığında çökmek yerine
+    güvenli ve açık bir ``okunamadı: desteklenmeyen YAML (...)`` uyarısı üretir.
+    Genel amaçlı PyYAML veya ruamel.yaml'a kıyasla sıfır harici bağımlılık sağlar,
+    C-derleme gerektirmez ve CI kurulum süresini sıfıra indirir.
+    """
     degiskenler = degiskenler or {}
     try:
         veri = miniyaml.ayristir(icerik)

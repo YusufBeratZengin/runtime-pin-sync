@@ -1,10 +1,27 @@
-"""GitHub Actions iş akışları için küçük, bağımlılıksız YAML önsüz ayrıştırıcı.
+"""GitHub Actions iş akışları için küçük, bağımlılıksız YAML ayrıştırıcı.
 
-Amaç genel amaçlı YAML değildir; iş akışlarında ihtiyaç duyulan alt kümayı
-destekler: iç içe eşlemeler, blok diziler, akış dizileri (``[20, 22]``),
-tek/çift tırnaklı düz değerler, yorumlar ve ``|``/``>`` blok metinleri.
-Alt küma dışı bir söz dizimi ``MiniYamlError`` fırlatır; çağıran bunu
-"okunamadı" uyarısına çevirir (dosya asla hataya düşmez).
+Amaç genel amaçlı bir YAML motoru olmak değil; GitHub Actions ve benzeri CI
+iş akışlarında ihtiyaç duyulan alt kümeyi sıfır bağımlılıkla ve güvenle ayrıştırmaktır.
+
+Desteklenen YAML alt kümesi:
+  - İç içe eşlemeler (ör. ``jobs:``, ``strategy:``, ``with:``)
+  - Blok diziler (``- uses: actions/setup-node@v4``)
+  - Akış dizileri (``node: [20, 22]``, ``[3.10, 3.12]``)
+  - Tırnaksız düz değerler, tek/çift tırnaklı dizgiler
+  - Çok satırlı değişmez/katlanmış blok metinler (``|``, ``>``, ``|-``, ``>-``)
+  - Yorumlar (satır başı veya satır içi ``#``)
+
+Kasıtlı olarak desteklenmeyen yapılar:
+  - Çıpa ve takma adlar (``&ref``, ``*ref``)
+  - Birleştirme anahtarları (``<<: *defaults``)
+  - Özel veri tipi etiketleri (``!!str``, ``!custom``)
+  - Karmaşık / çok satırlı anahtar söz dizimi (``? anahtar``)
+  - Girintide sekme (TAB) karakteri kullanımı (kesinlikle yasaktır)
+
+Davranış:
+  Alt küme dışı veya bozuk bir söz diziminde ``MiniYamlError`` fırlatılır.
+  Çağıran katman (``ci.py``) bunu yakalar ve süreci çökertmek yerine açık bir
+  "okunamadı: desteklenmeyen YAML (...)" uyarısı üretir.
 """
 
 from __future__ import annotations
