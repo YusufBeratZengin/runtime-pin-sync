@@ -65,14 +65,20 @@ def is_aksi(
     if not isinstance(isler, dict):
         return []
     satir_list = satirlar(icerik)
+    # her ADIM için ham metindeki (başlangıç, bitiş) satır aralığı: girdi
+    # konumları adım bloğunun DIŞINA (strategy.matrix satırlarına) taşamaz
+    pencereler = _adım_pencereleri(satir_list)
+    hizma = _pencereler_hizmalı(isler, pencereler)
     sonuc: list[Sabitleme] = []
+    imleç = [0]
     for ise_adi, islem in isler.items():
         if not isinstance(islem, dict):
             continue
         matris = _matris(islem)
         tuketlenen: set[str] = set()
         sonuc.extend(_adimlar(dosya, islem, matris, tuketlenen, satir_list,
-                              degiskenler, depo_koku, str(ise_adi)))
+                              degiskenler, depo_koku, str(ise_adi),
+                              pencereler if hizma else None, imleç))
         for anahtar, deger in matris.items():
             if anahtar in tuketlenen or not isinstance(deger, list):
                 continue
@@ -81,6 +87,82 @@ def is_aksi(
                 continue
             sonuc.extend(_matris_sabitlemeleri(dosya, cz, str(anahtar), deger))
     return sonuc
+
+
+def _adım_sayısı(isler: dict[str, Any]) -> int:
+    toplam = 0
+    for islem in isler.values():
+        if isinstance(islem, dict) and isinstance(islem.get("steps"), list):
+            toplam += len(islem["steps"])
+    return toplam
+
+
+def _pencereler_hizmalı(isler: dict[str, Any],
+                        pencereler: list[tuple[int, int]]) -> bool:
+    """Ham tarayıcının adım aralıkları ayrıştırılmış adımlarla birebir mi?
+
+    Eşleşmezse (akış biçimi `steps: [...]`, bozuk girinti...) hiçbir adımı
+    YANLIŞ satıra bağlamaktansa konumsuz bırakırız — sync konumsuz hedefi
+    otomatik yazmaz.
+    """
+    return len(pencereler) == _adım_sayısı(isler)
+
+
+def _adım_pencereleri(satir_list: list[str]) -> list[tuple[int, int]]:
+    """Her blok-dizi ADIMının ham metindeki 1-tabanlı (başlangıç, bitiş)
+    satır aralığı — belge sırasıyla.
+
+    `steps:` anahtarının altındaki `- ` öğeleri girintiyle sınırlanır;
+    böylece bir adımın girdi satırı arama alanı, aynı dosyadaki
+    `strategy.matrix` satırlarını içerMEZ.
+    """
+    pencereler: list[tuple[int, int]] = []
+    n = len(satir_list)
+    i = 0
+    while i < n:
+        s = satir_list[i]
+        m = re.match(r"^([ \t]*)steps[ \t]*:[ \t]*(\S.*)?$", s)
+        if m and not s.lstrip().startswith("#"):
+            adım_kir = len(m.group(1))
+            kalabilir = m.group(2)
+            if kalabilir and kalabilir.startswith("["):
+                # akış biçimi: steps: [run: x, ...] — her öğe tek satır
+                from .miniyaml import _virgulle_ayir
+
+                for _ in _virgulle_ayir(kalabilir[1:].rsplit("]", 1)[0]):
+                    pencereler.append((i + 1, i + 1))
+                i += 1
+                continue
+            j = i + 1
+            while j < n:
+                t = satir_list[j]
+                if not t.strip() or t.lstrip().startswith("#"):
+                    j += 1
+                    continue
+                kir = len(t) - len(t.lstrip())
+                if not t.lstrip().startswith("- "):
+                    if t.lstrip() == "-":
+                        pass
+                    elif kir <= adım_kir:
+                        break
+                    else:
+                        break
+                öğe_kir = kir
+                baş = j + 1
+                j += 1
+                while j < n:
+                    t2 = satir_list[j]
+                    if not t2.strip() or t2.lstrip().startswith("#"):
+                        j += 1
+                        continue
+                    if len(t2) - len(t2.lstrip()) <= öğe_kir:
+                        break
+                    j += 1
+                pencereler.append((baş, j))  # bitiş: SONRAKİ öğe (dahil değil)
+            i = j if j > i else i + 1
+        else:
+            i += 1
+    return pencereler
 
 
 def _matris(islem: dict[str, Any]) -> dict[str, Any]:
@@ -100,12 +182,19 @@ def _adimlar(
     degiskenler: dict[str, str],
     depo_koku: str,
     ise_adi: str,
+    pencereler: list[tuple[int, int]] | None,
+    imleç: list[int],
 ) -> list[Sabitleme]:
     sonuc: list[Sabitleme] = []
     adimlar = islem.get("steps")
     if not isinstance(adimlar, list):
         return sonuc
     for adim in adimlar:
+        # her ayrıştırılmış adım ham listedeki bir öğeye denk gelir (hizma
+        # denetimi is_aksi'de); pencere yoksa konum arama, YANLIŞ satır YAZMA
+        no = imleç[0]
+        imleç[0] += 1
+        pencere = pencereler[no] if pencereler is not None and no < len(pencereler) else None
         if not isinstance(adim, dict):
             continue
         uses = str(adim.get("uses") or "")
@@ -117,7 +206,8 @@ def _adimlar(
         with_block = with_block if isinstance(with_block, dict) else {}
         if dosya_giradi and dosya_giradi in with_block:
             sonuc.extend(_surum_dosyasi_gir(dosya, cz, str(with_block[dosya_giradi]),
-                                            satir_list, depo_koku, dosya_giradi))
+                                            satir_list, depo_koku, dosya_giradi,
+                                            pencere))
         if giradi not in with_block:
             # `dtolnay/rust-toolchain@1.85.0` gibi eylemler sürümü uses
             # referansından alır; girdi yoksa referans OKUNUR (sessiz kaybolmaz).
@@ -128,7 +218,7 @@ def _adimlar(
             continue
         deger = with_block[giradi]
         deger_metni = None if isinstance(deger, list) else str(deger)
-        satir_no = _girdi_satırı(satir_list, giradi, deger_metni)
+        satir_no = _girdi_satırı(satir_list, giradi, deger_metni, pencere)
         sonuc.extend(_deger_sabitlemeleri(dosya, cz, "ci-adim", deger, matris,
                                           tuketlenen, satir_no, degiskenler))
     return sonuc
@@ -206,9 +296,13 @@ def _matris_sabitlemeleri(dosya: str, cz: str, anahtar: str, degerler: list[Any]
 def _surum_dosyasi_gir(
     dosya: str, cz: str, hedef: str, satir_list: list[str], depo_koku: str,
     giradi: str = "version-file",
+    pencere: tuple[int, int] | None = None,
 ) -> list[Sabitleme]:
     """node-version-file gibi yönlendirmeler:
 
+    - Hedef YALNIZ depo içindeyse ve symlink içermiyorsa okunur; depo
+      dışına çıkan ya da bağlantı olan hedefler İÇERİK SIZDIRMADAN reddedilir
+      (`../../DOSYA` sınırı aşar — uyarı yalnız yolu tekrarlar, içeriği değil).
     - Hedef yoksa açık uyarı üretilir.
     - Hedef, Tara'nın zaten okuduğu bilinen bir sürüm dosyasıysa sessiz geçilir
       (çift kayıt olmaz).
@@ -216,15 +310,22 @@ def _surum_dosyasi_gir(
       sürüm dosyaları kaybolmaz).
     """
     hedef = hedef.strip()
+    satir_no = _girdi_satırı(satir_list, giradi, None, pencere)
     if "${{" in hedef:
         return [Sabitleme(cz, dosya, "ci-dosya", hedef, dinamik=True,
-                          satir=_girdi_satırı(satir_list, giradi))]
-    tam = os.path.join(depo_koku, *hedef.split("/"))
+                          satir=satir_no)]
+    güvenli = _depo_içi_hedef(depo_koku, hedef)
+    if güvenli is None:
+        return [Sabitleme(cz, dosya, "ci-dosya", hedef,
+                          uyari=f"okunamadı: version-file {hedef!r} depo sınırını "
+                                "aşıyor ya da dosya bağlantısı (rededildi)",
+                          satir=satir_no)]
+    tam, hedef_ad = güvenli
     if not os.path.isfile(tam):
         return [Sabitleme(cz, dosya, "ci-dosya", hedef,
                           uyari=f"okunamadı: version-file {hedef!r} bulunamadı",
-                          satir=_girdi_satırı(satir_list, giradi))]
-    if os.path.basename(hedef) in TARANAN_SÜRÜM_DOSYALARI:
+                          satir=satir_no)]
+    if hedef_ad in TARANAN_SÜRÜM_DOSYALARI:
         return []  # asıl dosya zaten taranacak — tutarlılık kendiliğinden
     try:
         with open(tam, encoding="utf-8", errors="replace") as fh:
@@ -232,11 +333,41 @@ def _surum_dosyasi_gir(
     except OSError as exc:
         return [Sabitleme(cz, dosya, "ci-dosya", hedef,
                           uyari=f"okunamadı: version-file {hedef!r} ({exc})",
-                          satir=_girdi_satırı(satir_list, giradi))]
+                          satir=satir_no)]
     pimler = _sürüm_dosyası_oku(cz, hedef, icerik)
     for p in pimler:
         p.tur = "ci-dosya"
     return pimler
+
+
+def _depo_içi_hedef(depo_koku: str, hedef: str) -> tuple[str, str] | None:
+    """(okunabilir yol, taban ad) ya da None (REDDEDİLDİ).
+
+    Red gerekçeleri: depo kökü bilinmiyor, mutlak yol, `..` bileşeni,
+    çözümlenmiş yol depo dışında (symlink dahil) — okuma ÖNCE denetlenir,
+    dışarıdaki içerik hiçbir yere (uyarıya bile) taşınmaz.
+    """
+    if not depo_koku:
+        return None
+    t = hedef.replace("\\", "/")
+    if t.startswith("/") or re.match(r"^[A-Za-z]:", t):
+        return None
+    parcalar = t.split("/")
+    if any(p == ".." for p in parcalar):
+        return None
+    tam = os.path.normpath(os.path.join(depo_koku, *parcalar))
+    kök = os.path.realpath(depo_koku)
+    gerçek = os.path.realpath(tam)
+    if gerçek != kök and not gerçek.startswith(kök + os.sep):
+        return None  # çözümlenen yol depo dışında (symlink dahil)
+    # depo kökündeki host bağları (macOS /tmp) meşrudur; RED yalnız depo
+    # İÇİNDEKİ bileşenlerin symlink olması hâlidir:
+    adım = depo_koku
+    for p in parcalar:
+        adım = os.path.join(adım, p)
+        if os.path.islink(adım):
+            return None
+    return tam, os.path.basename(tam)
 
 
 def _sürüm_dosyası_oku(cz: str, hedef: str, icerik: str) -> list[Sabitleme]:
@@ -253,24 +384,30 @@ def _sürüm_dosyası_oku(cz: str, hedef: str, icerik: str) -> list[Sabitleme]:
 
 
 def _girdi_satırı(
-    satir_list: list[str], anahtar: str, deger_metni: str | None = None
+    satir_list: list[str], anahtar: str, deger_metni: str | None = None,
+    pencere: tuple[int, int] | None = None,
 ) -> int | None:
     r"""YAML GİRDİ ANAHTARININ satırı: `^\s*<anahtar>:` biçimi.
 
     Serbest metin araması yanılır: `- name: node-version 22 installation`
     satırı gerçek `node-version: 20` girdisinden önce gelir. Anahtar verilse
     bile değer aynı satırda beklenir; bulunamazsa konum belirsizdir → None.
+
+    `pencere` verilirse arama YALNIZ o adım bloğunun satırlarında yapılır:
+    `strategy.matrix` içindeki aynı adlı satır (`node-version: [22, 24]`)
+    adımın konumu OLAMAZ. Kalan birden çok aday belirsizdir → None.
     """
     desen = re.compile(rf"^[ \t]*{re.escape(anahtar)}[ \t]*:")
     anahtar_satırları = [i for i, s in enumerate(satir_list, start=1)
-                         if desen.match(s)]
+                         if desen.match(s)
+                         and (pencere is None or pencere[0] <= i <= pencere[1])]
     if not anahtar_satırları:
         return None
     if deger_metni is None:
         return anahtar_satırları[0] if len(anahtar_satırları) == 1 else None
     hedefler = [i for i in anahtar_satırları
                 if deger_metni in satir_list[i - 1]]
-    return hedefler[0] if hedefler else None
+    return hedefler[0] if len(hedefler) == 1 else None
 
 
 def _tam_satır(satir_list: list[str], iplik: str) -> int | None:

@@ -70,6 +70,20 @@ def _dosya_işle(
     kok: Path, göreli: str, yol: Path, degiskenler: dict[str, str] | None
 ) -> list[Sabitleme]:
     ad = yol.name
+    # DEPONUN KENDİSİ tarama sınırıdır: depo içinden çıkan bir symlink'in
+    # hedefi depo içeriği SAYILMAZ (okumadan önce denetlenir; dışarıdaki
+    # içerik hiçbir uyarıya/aleve taşınmaz).
+    if yol.is_symlink():
+        try:
+            çözüm = yol.resolve()
+            kök_çözüm = kok.resolve()
+        except OSError as exc:
+            return [Sabitleme("bilinmeyen", göreli, "dosya", "",
+                              uyari=f"okunamadı: {exc}")]
+        if çözüm != kök_çözüm and kök_çözüm not in çözüm.parents:
+            return [Sabitleme("bilinmeyen", göreli, "dosya", "",
+                              uyari="okunamadı: bağlantı depo dışına işaret "
+                                    "ediyor (okuma reddedildi)")]
     try:
         if ad in (".nvmrc", ".node-version"):
             return node.surum_dosyasi(göreli, _metin(yol),

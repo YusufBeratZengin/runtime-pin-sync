@@ -35,15 +35,79 @@ _İMAJ_ESLEME = (
     ("ibm-semeru", "java"),
 )
 
+# Dağıtım/varyant sonekleri: `python:3.12-slim-bookworm` sürüm 3.12'dir.
+_VARYANTLAR = frozenset({
+    "alpine", "slim", "base", "full", "latest", "os", "default", "minimal",
+    "bullseye", "bookworm", "trixie", "buster", "bullseye-slim",
+    "bionic", "focal", "jammy", "noble", "oracular", "resolute", "sid",
+    "stretch", "xenial", "jdk", "jre", "server-jre", "jdk-alpine",
+    "jre-alpine", "nanoserver", "windowsservercore", "ltsc",
+})
+# Ön sürüm sözcükleri: `node:22-rc1` KARARLI 22'ye indirgenmez.
+_ÖN_SÜRÜM_RE = re.compile(
+    r"(?:rc|alpha|beta|pre|preview|canary|nightly|next|insider|snapshot|dev)"
+    r"\d*$", re.IGNORECASE)
+
+
+def imaj_ad_ve_etiket(referans: str) -> tuple[str, str]:
+    """İmaj referansını (ad, etiket) ayırır — REGISTRY PORTU tuzağına düşmez.
+
+    `registry.example:5000/node:22` tek `partition(":")` ile
+    (`registry.example`, `5000/node:22`) olurdu; etiket yalnız SON YOL
+    BİLEŞENİNDEKİ ikili noktadır.
+    """
+    son = referans.rsplit("/", 1)[-1]
+    if ":" in son:
+        i = referans.rfind(":")
+        return referans[:i], referans[i + 1:]
+    return referans, ""
+
+
+def etiket_sınıflandır(etiket: str) -> tuple[str, str, str | None]:
+    """(sürüm, durum, uyarı): durum "sürüm" | "etiketsiz" | "ön-sürüm" | "bilinmeyen".
+
+    Ön sürümler (`22-rc1`) ve tanınmayan sonekler karşılaştırma DIŞIDIR ve
+    açık uyarı üretir; bilinen dağıtım sonekleri (`3.12-slim-bookworm`)
+    sürümü korur. Böylece ön sürüm sessizce kararlıya indirgenmez.
+    """
+    m = _ETIKET_SURUM_RE.match(etiket)
+    if not m:
+        return "", "etiketsiz", None
+    sürüm = m.group(1)
+    kalan = etiket[m.end():]
+    if not kalan:
+        return sürüm, "sürüm", None
+    if kalan.startswith("+"):  # PEP 440 yapısal meta verisi: yok sayılır
+        return sürüm, "sürüm", None
+    if kalan[0] not in "-._":
+        return sürüm, "bilinmeyen", f"okunamadı: çözümlenemeyen etiket {etiket!r}"
+    parçalar = [p.lower() for p in re.split(r"[-._]", kalan.lstrip("-._")) if p]
+    if any(_ÖN_SÜRÜM_RE.fullmatch(p) for p in parçalar):
+        return sürüm, "ön-sürüm", \
+            f"okunamadı: ön sürüm etiketi karşılaştırmaya girmez ({etiket})"
+    if all(p in _VARYANTLAR or p.isdigit() for p in parçalar):
+        return sürüm, "sürüm", None
+    return sürüm, "bilinmeyen", \
+        f"okunamadı: desteklenmeyen etiket soneki ({etiket})"
+
 
 def imaj_coz(ad: str, etiket: str) -> tuple[str | None, str]:
-    """(calisma_zamani, surum_belirteci). Etiket sürüm değilse '' döner."""
+    """(calisma_zamani, surum_belirteci). Etiket sürüm DEĞİLSE ya da
+    karşılaştırma dışıysa (ön sürüm/bilinmeyen) sürüm '' döner."""
+    cz, sürüm, _ = imaj_durumu(ad, etiket)
+    return cz, sürüm
+
+
+def imaj_durumu(ad: str, etiket: str) -> tuple[str | None, str, str | None]:
+    """(calisma_zamani, sürüm|'', uyarı|None) — dockerfile/devcontainer ortak."""
     kisa = ad.lower().rsplit("/", 1)[-1]
     for eslek, cz in _İMAJ_ESLEME:
         if kisa == eslek or kisa.endswith("-" + eslek) or kisa.startswith(eslek + "-"):
-            m = _ETIKET_SURUM_RE.match(etiket)
-            return cz, (m.group(1) if m else "")
-    return None, ""
+            sürüm, durum, uyari = etiket_sınıflandır(etiket)
+            if durum != "sürüm":
+                return cz, "", uyari  # "bilinmeyen" uyarılı, "ön-sürüm"/"etiketsiz" uyarısız ya da uyarılı
+            return cz, sürüm, None
+    return None, "", None
 
 
 def dockerfile(dosya: str, icerik: str) -> list[Sabitleme]:
@@ -75,17 +139,18 @@ def dockerfile(dosya: str, icerik: str) -> list[Sabitleme]:
         # önceki aşmanın takma adı: "FROM builder" — yeni imaj değil, tekrar sayılmaz
         if referans.lower() in asmalar:
             continue
-        ad, _, etiket = referans.partition(":")
-        cz, surum = imaj_coz(ad, etiket)
+        ad, etiket = imaj_ad_ve_etiket(referans)
+        cz, sürüm, uyari = imaj_durumu(ad, etiket)
         if cz is None:
             continue  # taban imaj (ubuntu, alpine...) takip edilmiyor
         if takma:
             asmalar[takma] = referans
-        if not surum:
-            sonuc.append(Sabitleme(cz, dosya, "dockerfile", etiket or "(etiketsiz)",
-                                   dinamik=True, satir=no))
-            continue
-        sonuc.append(pin(cz, dosya, "dockerfile", surum, satir=no))
+        if sürüm:
+            sonuc.append(pin(cz, dosya, "dockerfile", sürüm, satir=no))
+        else:
+            sonuc.append(Sabitleme(cz, dosya, "dockerfile",
+                                   etiket or "(etiketsiz)", dinamik=True,
+                                   satir=no, uyari=uyari))
     return sonuc
 
 
@@ -112,14 +177,15 @@ def devcontainer(dosya: str, icerik: str) -> list[Sabitleme]:
                           uyari="okunamadı: JSON bir nesne değil")]
     imaj = veri.get("image")
     if isinstance(imaj, str) and imaj:
-        ad, _, etiket = imaj.partition(":")
-        cz, surum = imaj_coz(ad, etiket)
+        ad, etiket = imaj_ad_ve_etiket(imaj)
+        cz, sürüm, uyari = imaj_durumu(ad, etiket)
         if cz:
-            if surum:
-                sonuc.append(pin(cz, dosya, "devcontainer", surum))
+            if sürüm:
+                sonuc.append(pin(cz, dosya, "devcontainer", sürüm))
             else:
-                sonuc.append(Sabitleme(cz, dosya, "devcontainer", etiket or "(etiketsiz)",
-                                       dinamik=True, satir=None))
+                sonuc.append(Sabitleme(cz, dosya, "devcontainer",
+                                       etiket or "(etiketsiz)", dinamik=True,
+                                       satir=None, uyari=uyari))
     ozellikler = veri.get("features")
     if isinstance(ozellikler, dict):
         for ad, ayar in ozellikler.items():

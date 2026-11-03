@@ -149,6 +149,9 @@ def test_ci_ad_satırı_yanılır_sync_gerçek_girdiyi_yazar(tmp_path):
 # --- regresyon: depo dışına yazma / symlink -----------------------------------
 
 def test_symlink_hedef_depo_dışına_yazılmaz(tmp_path):
+    # Yeni sınır: okuma DA reddedilir — depo dışına çıkan symlink depoya
+    # içerik taşımaz (tara.py) ve yazılamaz (yaz.py). Uyarı yalnız yolu
+    # tekrarlar; dışarıdaki içerik hiçbir yere sızmaz.
     try:
         (tmp_path / "harici.txt").write_text("22\n", encoding="utf-8")
         depo = tmp_path / "depo"
@@ -158,9 +161,13 @@ def test_symlink_hedef_depo_dışına_yazılmaz(tmp_path):
     except OSError:  # Windows: symlink hakkı yoksa atla
         import pytest
         pytest.skip("symlink desteklenmiyor")
+    pimler = tara(depo)
+    red = [p for p in pimler if p.uyari and "depo dışına" in p.uyari]
+    assert red and red[0].dosya == ".nvmrc"
+    assert not any(p.dosya == ".nvmrc" and p.kullanilabilir for p in pimler)
+    assert "22" not in " ".join(p.ham for p in pimler)  # içerik sızmadı
     otomatik, elle = senkronla(depo, ".tool-versions", False)
-    assert otomatik == []
-    assert elle and "symlink" in elle[0].gerekce
+    assert otomatik == [] and elle == []
     assert (tmp_path / "harici.txt").read_text(encoding="utf-8") == "22\n"
 
 

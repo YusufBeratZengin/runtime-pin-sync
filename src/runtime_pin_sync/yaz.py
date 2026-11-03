@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .docker import _FROM_RE, imaj_coz
+from .docker import _FROM_RE, imaj_ad_ve_etiket, imaj_coz
 from .karsilastir import celiski
 from .sabitleme import Sabitleme
 from .tara import kaynak_kontrol, tara
@@ -74,6 +74,7 @@ def senkronla(
     otomatik: list[Degisiklik] = []
     elle: list[Degisiklik] = []
     hedefler: dict[tuple[str, int], Degisiklik] = {}
+    çakışan: set[tuple[str, int]] = set()
     for c in celiskiler:
         hedef_deger = c.referans_ham
         for p in c.dislananlar:
@@ -89,9 +90,15 @@ def senkronla(
                     elle.append(d)
                     continue
                 anahtar = (d.dosya, d.satir)
-                if anahtar in hedefler:  # aynı satıra iki hedef: güvenli değil
-                    hedefler[anahtar].gerekce = "aynı satırda birden fazla hedef"
-                    elle.append(hedefler.pop(anahtar))
+                if anahtar in hedefler or anahtar in çakışan:
+                    # aynı satıra iki+ hedef: güvenli değil. Çakışan satır
+                    # KALICI olarak geçersizdir — üçüncü hedef "ilk iki elle
+                    # listeye gitti, sıra bende" diye otomatik plana DÖNEMEZ.
+                    çakışan.add(anahtar)
+                    eski = hedefler.pop(anahtar, None)
+                    if eski is not None:
+                        eski.gerekce = "aynı satırda birden fazla hedef"
+                        elle.append(eski)
                     elle.append(Degisiklik(d.dosya, d.satir, d.eski, d.yeni,
                                            "aynı satırda birden fazla hedef"))
                     continue
@@ -213,6 +220,6 @@ def _docker_gecerli(satir: str, hedef: str) -> bool:
     m = _FROM_RE.match(satir)
     if not m:
         return False
-    ad, _, etiket = m.group("imaj").partition(":")
+    ad, etiket = imaj_ad_ve_etiket(m.group("imaj"))
     _cz, surum = imaj_coz(ad, etiket)
     return surum == hedef

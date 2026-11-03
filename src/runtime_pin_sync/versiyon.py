@@ -118,20 +118,31 @@ def _kismi_aralik(v: _T) -> Aralik:
     return Aralik(alt=v, alt_kapsar=True, ust=_sonraki(v), ust_kapsar=False)
 
 
-def _tek_kisit(op: str, v: _T, yildiz: bool) -> Aralik:
+def _tek_kisit(op: str, v: _T, yildiz: bool, semver: bool = False) -> Aralik:
     if op in ("", "="):
         # Tam belirtilmiş sürüm (üç+ bileşen) NOKTADIR: "20.1.0" kendi dışındaki
         # ">20.1.0" ile kesişmez. Kısa belirteç ("20", "20.1", "20.x") önektir.
         if not yildiz and len(v) >= 3:
             return Aralik(alt=v, alt_kapsar=True, ust=v, ust_kapsar=True)
         return _kismi_aralik(v)
-    if op == "==":  # PEP 440: ==3.12 tam değerdir (0.9.10 eşleşmesi yok)
+    if op == "==":
+        # PEP 440: ==3.12.* YILDIZLI ÖNEKTİR, 3.12.1 ile eşleşir; ==3.12
+        # (yıldızsız) tam değerdir (0.9.10 eşleşmesi yok).
+        if yildiz:
+            return _kismi_aralik(v)
         return Aralik(alt=v, alt_kapsar=True, ust=v, ust_kapsar=True)
     if op == ">=":
         return Aralik(alt=v, alt_kapsar=True)
     if op == ">":
+        # npm/semver: yarım sürümle ">" seriyi DIŞLAR — ">20" == ">=21.0.0"
+        # (node-semver replaceXRanges). PEP 440'ta ">20" dar anlamdadır.
+        if semver and (yildiz or len(v) < 3):
+            return Aralik(alt=_sonraki(v), alt_kapsar=True)
         return Aralik(alt=v, alt_kapsar=False)
     if op == "<=":
+        # npm/semver: "<=20" seriyi İÇERİR — "<21.0.0"; PEP'te dar anlamdadır.
+        if semver and (yildiz or len(v) < 3):
+            return Aralik(ust=_sonraki(v), ust_kapsar=False)
         return Aralik(ust=v, ust_kapsar=True)
     if op == "<":
         return Aralik(ust=v, ust_kapsar=False)
@@ -153,8 +164,13 @@ def _tek_kisit(op: str, v: _T, yildiz: bool) -> Aralik:
     return Aralik()  # ulaşılamaz
 
 
-def spek_ayristir(ham: str) -> AralikKumesi | None:
-    """Bir sürüm belirtecini aralık kümesine çevirir; çözülemezse ``None``."""
+def spek_ayristir(ham: str, semver: bool = False) -> AralikKumesi | None:
+    """Bir sürüm belirtecini aralık kümesine çevirir; çözülemezse ``None``.
+
+    ``semver=True`` npm/semver lehçesini seçer: yarım sürümlü ``>``/``<=``
+    seriyi dışarıda/beri bırakır (``>20`` == ``>=21.0.0``). Varsayılan PEP 440
+    dar karşılaştırmasıdır (``>20`` == ``>20.0``, ``==3.12.1`` nokta).
+    """
     metin = (ham or "").strip()
     if not metin:
         return None
@@ -171,7 +187,7 @@ def spek_ayristir(ham: str) -> AralikKumesi | None:
         for k in kisitlar:
             if not k:
                 continue
-            a = _kisit(k)
+            a = _kisit(k, semver)
             if a is None:
                 return None
             parca = a if parca is None else parca.kesis(a)
@@ -181,7 +197,7 @@ def spek_ayristir(ham: str) -> AralikKumesi | None:
     return AralikKumesi(tuple(parcalar)) if parcalar else None
 
 
-def _kisit(token: str) -> Aralik | None:
+def _kisit(token: str, semver: bool = False) -> Aralik | None:
     m = _KISIT_RE.fullmatch(token)
     if not m:
         return None
@@ -199,7 +215,7 @@ def _kisit(token: str) -> Aralik | None:
     except ValueError:
         return None
     yildiz = ".*" in token or token.endswith(".x") or token.endswith(".X")
-    return _tek_kisit(op, v, yildiz)
+    return _tek_kisit(op, v, yildiz, semver)
 
 
 # Operatörü, birleşimi veya listesi OLMAYAN düz sürüm belirteci:

@@ -91,6 +91,25 @@ def _medoid(bileşen: list[Sabitleme], havuz: list[Sabitleme]) -> Sabitleme:
     return en_iyi(bileşen)
 
 
+def _kaynak_referansı(kaynak_pimler: list[Sabitleme]) -> Sabitleme:
+    """Kaynak dosyanın REFERANS sabitlemesi.
+
+    Kaynak tek değer beyan ediyorsa o pimdir. ÇOK DEĞERLİ kaynakta
+    (`mise.toml [tools] node = ["22","24"]` gibi iki ayrı somut pim) ilk
+    üye referans OLAMAZ — README liste/ızgara referansında otomatik yazmayı
+    kapattığını söyler. Birleşim kümesi + `"22, 24"` ham metni üretilir;
+    `sabit_belirtec_mi` bunu sabit saymadığı için yazıcı hiçbir hedefi
+    otomatik yazmaz, tamamı "elle düzeltilmeli"ye gider.
+    """
+    if len(kaynak_pimler) == 1:
+        return kaynak_pimler[0]
+    birleşik = AralikKumesi(tuple(par for p in kaynak_pimler
+                                  for par in _kume(p).parcalar))
+    return Sabitleme(kaynak_pimler[0].calisma_zamani, kaynak_pimler[0].dosya,
+                     "kaynak", ", ".join(p.ham for p in kaynak_pimler),
+                     aralik=birleşik)
+
+
 def _bileşen_hedefleri(bileşen: list[Sabitleme], havuz: list[Sabitleme],
                        kaynak: str | None) -> tuple[Sabitleme, list[Sabitleme]] | None:
     """(referans, dışlananlar). Kaynak modunda referans kaynaktır; kaynakla
@@ -105,7 +124,7 @@ def _bileşen_hedefleri(bileşen: list[Sabitleme], havuz: list[Sabitleme],
             dislanan = [p for p in bileşen if p is not referans
                         and not _kesisir(referans, p)]
             return (referans, dislanan) if dislanan else _iç_çelişki(bileşen, havuz)
-        referans = kaynak_pimler[0]
+        referans = _kaynak_referansı(kaynak_pimler)
         ref_küme = AralikKumesi(tuple(par for p in kaynak_pimler
                                        for par in _kume(p).parcalar))
         dislanan = [p for p in bileşen if p.dosya != kaynak

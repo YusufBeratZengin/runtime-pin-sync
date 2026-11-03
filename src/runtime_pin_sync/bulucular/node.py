@@ -77,21 +77,94 @@ def package_json(dosya: str, icerik: str) -> list[Sabitleme]:
                 satir=_engines_node_satırı(icerik, ham))]
 
 
-def _engines_node_satırı(metin: str, ham: str) -> int | None:
-    """Ayrıştırılan engines.node DEĞERİNİN kesin satırı.
+def _kök_anahtar_başlangıcı(metin: str, anahtar: str) -> int | None:
+    """KÖK nesnede (derinlik 1) `"anahtar": {` girişinin '{' konumu.
 
-    Metindeki ilk "node" araması yanılır: `{"dependencies": {"node": "22"},
-    "engines": {"node": "22"}}` içinde yanlış alanı bulur. `"engines"` nesne
-    girişinden sonrasındaki ilk `node` anahtarına bakar; eşleşme belirsiz veya
-    değer farklıysa konum YOK (sync bu durumda yazmaz).
+    Basit `re.search('"anahtar"\\s*:\\s*\\{')` her derinlikte bulur:
+    `{"custom": {"engines": {"node": "22"}}, "engines": {...}}` içinde
+    yanlış alanı (custom.engines) seçer. Burada tırnak/kaçış durumunu
+    izleyerek AYNI KÖK NESNEDEKİ anahtarlar taranır; birebir tek eşleşme
+    yoksa konum belirsizdir → None.
     """
-    m = re.search(r'"engines"\s*:\s*\{', metin)
-    if not m:
+    derinlik = 0
+    i = 0
+    n = len(metin)
+    bulunan: list[int] = []
+    while i < n:
+        c = metin[i]
+        if c == '"':
+            son = _dize_sonu(metin, i)
+            if derinlik == 1:
+                # anahtar mı? sonrası ':' olmalı (beyazlık boşluk tolere)
+                j = son
+                while j < n and metin[j] in " \t\r\n":
+                    j += 1
+                if j < n and metin[j] == ":":
+                    ad = metin[i + 1:son - 1]
+                    if ad == anahtar:
+                        k = j + 1
+                        while k < n and metin[k] in " \t\r\n":
+                            k += 1
+                        if k < n and metin[k] == "{":
+                            bulunan.append(k)
+            i = son
+        elif c in "{[":
+            derinlik += 1
+            i += 1
+        elif c in "}]":
+            derinlik -= 1
+            i += 1
+        else:
+            i += 1
+    return bulunan[0] if len(bulunan) == 1 else None
+
+
+def _dize_sonu(metin: str, baş: int) -> int:
+    """baş'daki açtırma tırnağının KAPANIŞından sonraki indek."""
+    i = baş + 1
+    n = len(metin)
+    while i < n:
+        if metin[i] == "\\":
+            i += 2
+            continue
+        if metin[i] == '"':
+            return i + 1
+        i += 1
+    return n
+
+
+def _eşleşen_kapanış(metin: str, açık: int) -> int:
+    """'{' indeksinden sonra gelen eşleşen '}' indeksi (tırnak sezgili)."""
+    derinlik = 0
+    i = açık
+    n = len(metin)
+    while i < n:
+        c = metin[i]
+        if c == '"':
+            i = _dize_sonu(metin, i)
+            continue
+        if c == "{":
+            derinlik += 1
+        elif c == "}":
+            derinlik -= 1
+            if derinlik == 0:
+                return i
+        i += 1
+    return n
+
+
+def _engines_node_satırı(metin: str, ham: str) -> int | None:
+    """Ayrıştırılan KÖK engines.node DEĞERİNİN kesin satırı.
+
+    Yalnız kök nesnedeki `engines` anahtarı izlenir (`custom.engines.node`
+    tuzağı); nesne içinde `"node"` anahtarı birebir tek ve değeri ham ile
+    bayt birebir aynıysa konum vardır. Belirsizlikte konum YOK (sync yazmaz).
+    """
+    açık = _kök_anahtar_başlangıcı(metin, "engines")
+    if açık is None:
         return None
-    kuyruk = metin[m.end():]
-    vm = re.search(r'"node"\s*:\s*"((?:[^"\\]|\\.)*)"', kuyruk)
-    if vm is None or "}" in kuyruk[:vm.start()]:
-        return None  # engines.node konumu çözülemedi
-    if vm.group(1) != ham:
-        return None  # kaçışlı/bayt farklı değeri: konumdan emin değiliz
-    return metin[:m.end() + vm.start()].count("\n") + 1
+    nesne = metin[açık + 1:_eşleşen_kapanış(metin, açık)]
+    eşleşen = list(re.finditer(r'"node"\s*:\s*"((?:[^"\\]|\\.)*)"', nesne))
+    if len(eşleşen) != 1 or eşleşen[0].group(1) != ham:
+        return None  # belirsiz ya da kaçışlı/farklı değer: konumdan emin değiliz
+    return metin[:açık + 1 + eşleşen[0].start()].count("\n") + 1

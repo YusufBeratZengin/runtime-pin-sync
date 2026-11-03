@@ -6,9 +6,11 @@ Bu dosyalar çoklu çalışma zamanını tek yerde tutar; kartın varsayılan
 
 from __future__ import annotations
 
+import re
+
 from .. import minitoml
 from ..sabitleme import Sabitleme
-from . import pin, satirlar
+from . import grid_pin, pin, satirlar
 
 __all__ = ["tool_versions", "mise", "TAKMA_ADLAR"]
 
@@ -31,14 +33,20 @@ def tool_versions(dosya: str, icerik: str) -> list[Sabitleme]:
         parcalar = govde.split()
         if len(parcalar) < 2:
             continue
-        ad, deger = parcalar[0], parcalar[1]
+        ad, degerler = parcalar[0], parcalar[1:]
         cz = TAKMA_ADLAR.get(ad.lower())
         if cz is None:
             continue
-        if deger.lower() in _BILINMEYEN_DEGERLER:
-            sonuc.append(Sabitleme(cz, dosya, "tool-versions", deger, dinamik=True, satir=i))
+        if any(d.lower() in _BILINMEYEN_DEGERLER for d in degerler):
+            sonuc.append(Sabitleme(cz, dosya, "tool-versions",
+                                   " ".join(degerler), dinamik=True, satir=i))
+        elif len(degerler) == 1:
+            sonuc.append(pin(cz, dosya, "tool-versions", degerler[0], satir=i))
         else:
-            sonuc.append(pin(cz, dosya, "tool-versions", deger, satir=i))
+            # asdf çoklu kurulum: "python 3.12.1 3.11.8" İKİSİNİ birden
+            # kurar → BİRLİŞİM (ızgara) olarak modellenir; ilk değere
+            # indirgenmez, hiçbir üyeyle tek başına çelişki sayılmaz.
+            sonuc.append(grid_pin(cz, dosya, "tool-versions", degerler))
     return sonuc
 
 
@@ -67,15 +75,32 @@ def mise(dosya: str, icerik: str) -> list[Sabitleme]:
                 sonuc.append(Sabitleme(cz, dosya, "mise", metin, dinamik=True))
             elif metin.lower() in _BILINMEYEN_DEGERLER:
                 sonuc.append(Sabitleme(cz, dosya, "mise", metin, dinamik=True,
-                                       satir=_satir_bul_adi(satirlar(icerik), str(ad))))
+                                       satir=_tools_satırı(satirlar(icerik), str(ad))))
             else:
                 sonuc.append(pin(cz, dosya, "mise", metin,
-                                 satir=_satir_bul_adi(satirlar(icerik), str(ad))))
+                                 satir=_tools_satırı(satirlar(icerik), str(ad))))
     return sonuc
 
 
-def _satir_bul_adi(satir_list: list[str], ad: str) -> int | None:
+_BÖLÜM_RE = re.compile(r"^\s*\[\[?([^\]]+)\]?\]")
+
+
+def _tools_satırı(satir_list: list[str], ad: str) -> int | None:
+    """[tools] bölümündeki TAM anahtar satırı.
+
+    Serbest arama `[env] node = "22"` gibi Ortam değişkeni satırlarını da
+    bulur ve sync yanlış bölümü değiştirirdi. Yalnız akış-dışı (inline
+    olmayan) `[tools]` tablosundaki `ad = ...` satırları sayılır; birebir
+    tek eşleşme yoksa konum belirsizdir → None (sync yazmaz).
+    """
+    desen = re.compile(rf"^\s*(?:\"{re.escape(ad)}\"|'{re.escape(ad)}'|{re.escape(ad)})\s*=")
+    bölüm = ""
+    hedefler: list[int] = []
     for i, s in enumerate(satir_list, start=1):
-        if ad in s and "=" in s:
-            return i
-    return None
+        b = _BÖLÜM_RE.match(s)
+        if b:
+            bölüm = b.group(1).strip().strip("\"'")
+            continue
+        if bölüm == "tools" and desen.match(s):
+            hedefler.append(i)
+    return hedefler[0] if len(hedefler) == 1 else None
