@@ -108,8 +108,10 @@ runtime-pin-sync sync --kaynak .tool-versions             # sapmaları yeniden y
   anlamlı olmayan her satır **ELLE DÜZELTİLMELİ** listesine yazılır — asla
   sessizce değiştirilmez;
 - yazım hedefleri denetlenir: symlink'li dosyalara ve depo dışına çözülen
-  yollara asla dokunulmaz; dosyalar bayt düzeyinde okunup yazılır, CRLF ve
-  karışık satır sonları hedef satır dışında aynen kalır;
+  yollara asla dokunulmaz — sınır OKUMALARI da korur (depo dışına çıkan
+  symlink'li sürüm dosyası ya da `*-version-file: ../..` hedefi, içeriği
+  rapora sızmadan okunmadan reddedilir); dosyalar bayt düzeyinde okunup
+  yazılır, CRLF ve karışık satır sonları hedef satır dışında aynen kalır;
 - aynı sabitleme birden çok satırda geçiyorsa TÜM satırlar yazılır; yazımdan
   sonra depo yeniden taranır, kalan çelişki başarı sayılmaz (exit 1);
 - `--dry-run` dosyaların bit bit değişmediğini garanti eder (testli).

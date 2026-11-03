@@ -6,7 +6,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Fixed (independent review round)
+### Fixed (independent review round 2)
 - Conflict engine now reports pairwise contradictions (union-find components);
   a hub pin (`20`, `>=18`) can no longer hide that `20.11.0` conflicts with
   `20.12.0` or that `20` conflicts with `<20`.
@@ -41,6 +41,43 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   directories are pruned before descent (`os.walk`); CI negative-example step
   asserts exit code exactly 1.
 
+### Fixed (independent review round 3)
+- `*-version-file` targets are read only inside the repo: `..` components,
+  absolute paths and symlinked targets are rejected *before* reading, so
+  outside content can never reach a warning; the scanner applies the same
+  boundary (a symlink pointing outside the repo yields a refused-read
+  warning and contributes no pins).
+- CI input positions are derived from the job/step/`with` block: a matrix
+  line (`node-version: [22, 24]`) can no longer become the position of a
+  step's `node-version: 22` (sync used to rewrite the matrix and leave the
+  step stale); repeated steps each bind to their own real line and all
+  occurrences are written.
+- `package.json` `engines.node` position binds to the ROOT `engines` key
+  (brace-depth aware): `custom.engines.node` can no longer be the write
+  target; ambiguity yields no position instead of a guess.
+- `mise.toml` line positions bind to the `[tools]` section and the exact
+  key: `[env] node = "22"` is no longer rewritten when the pin lives in
+  `[tools]`; inline tables stay position-less (manual).
+- A line that collided into the manual list stays disqualified: a third
+  target on the same line can no longer re-enter the automatic plan
+  (`python = ["3.9", "3.10", "3.11"]` now lists all three as manual).
+- Multi-valued sources never auto-write their first member: with
+  `node = ["22", "24"]` in the source file, the reference becomes the
+  union (`22, 24`), which `sync` treats as non-fixed → manual list,
+  matching the README's grid/list promise.
+- Version comparison dialects split: PEP 440 keeps `==3.12.*` a wildcard
+  prefix (matches `3.12.1`) and narrow `>`/`<=`; npm/semver (node, rust)
+  follows node-semver x-ranges (`>20` == `>=21.0.0`, `<=20` == `<21.0.0`).
+- Docker tags: prereleases (`node:22-rc1`) are no longer coerced to the
+  stable `22` — reported with a warning and excluded from comparison;
+  known distro suffixes (`3.12-slim-bookworm`, `17-jre`) keep the version;
+  unknown suffixes warn and are excluded. Registry ports
+  (`registry.example:5000/node:22`) split correctly in Dockerfile and
+  devcontainer readers, so the pin is no longer silently dropped.
+- `.tool-versions` multi-version lines (`python 3.12.1 3.11.8`, asdf
+  installs both) model the UNION, not just the first entry — no more
+  false conflicts against `.python-version=3.11.8`.
+
 ### Planned
 - `--lang en` English message mode
 - `--sdkmanrc` and Ruby `.ruby-version` finders
@@ -73,6 +110,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - CLI (`runtime-pin-sync`, exit 0/1/2), `--json` machine output, table report
 - Zero runtime dependencies: stdlib `tomllib` with 3.10 fallback parser,
   built-in minimal YAML subset parser, JSONC-tolerant devcontainer reader
-- Node LTS alias table (hydrogen→16 … krypton→24); unknown aliases skipped,
-  never guessed
+- Node LTS alias table (gallium→16, hydrogen→18, iron→20, jod→22,
+  krypton→24); unknown aliases skipped, never guessed
 - 149 tests, 93% coverage, ruff + strict mypy, Linux/Windows/macOS CI

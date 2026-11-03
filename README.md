@@ -115,8 +115,10 @@ runtime-pin-sync sync --kaynak .tool-versions             # rewrite outliers
   any line where a replacement would be ambiguous are listed under
   **ELLE DÜZELTİLMELİ** (needs manual edit) — never rewritten;
 - write targets are audited: symlinked files and paths resolving outside the
-  repository are never touched; files are read/written byte-wise so CRLF and
-  mixed line endings survive untouched outside the target line;
+  repository are never touched — the boundary also guards **reads** (a
+  symlinked version file or `*-version-file: ../..` target is refused before
+  its content can leak into any report); files are read/written byte-wise so
+  CRLF and mixed line endings survive untouched outside the target line;
 - when a pinned value occurs on several lines, ALL occurrences are rewritten;
   after writing, the repo is rescanned and any surviving conflict is reported
   (exit 1), never silently counted as success;
