@@ -6,6 +6,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- `--lang {tr,en}` CLI option and `RUNTIME_PIN_SYNC_LANG` environment variable support for full English output across tables, conflict reports, sync operations, and error/warning paths.
+- Documented supported YAML subset in `miniyaml.py` with behavioral examples and explicit architectural comparison with PyYAML / ruamel.yaml in README (EN and TR).
+
+### Fixed
+- Fixed clean-clone pytest collection failures (`ModuleNotFoundError: No module named 'runtime_pin_sync'`) by adding `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` and defining `export PYTHONPATH="src"` in `scripts/check.sh`.
+- Pinned developmental dependency version bounds in `pyproject.toml` (`[project.optional-dependencies] dev`) for reproducible test and CI execution.
+
 ### Fixed (independent review round 2)
 - Conflict engine now reports pairwise contradictions (union-find components);
   a hub pin (`20`, `>=18`) can no longer hide that `20.11.0` conflicts with
@@ -79,7 +87,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   false conflicts against `.python-version=3.11.8`.
 
 ### Planned
-- `--lang en` English message mode
 - `--sdkmanrc` and Ruby `.ruby-version` finders
 - GitHub Action wrapper (`action.yml`) + pre-commit hook id
 - EOL (end-of-life) warnings fed by an explicit data source

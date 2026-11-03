@@ -45,9 +45,30 @@ $ echo $?
 1
 ```
 
-(Bu depo içindeki `ornek-depolar/uyumsuz` deposunun GERÇEK çıktısıdır.)
+(Bu depo içindeki `ornek-depolar/uyumsuz` deposunun GERÇEK çıktısıdır. Varsayılan dil Türkçedir; `--lang en` veya `RUNTIME_PIN_SYNC_LANG=en` ile tam İngilizce desteklenir.)
 
-Çelişkiyi tek kaynaktan gider:
+İngilizce kipte çalıştırma:
+
+```console
+$ runtime-pin-sync . --lang en
+RUNTIME  SOURCE                    TYPE             PIN      STATUS
+-------  ------------------------  ---------------  -------  ----------
+node     .github/workflows/ci.yml  ci-adim          20       reference
+node     .nvmrc                    nvmrc            20       consistent
+node     .tool-versions            tool-versions    20.11.0  consistent
+node     Dockerfile                dockerfile       22       CONFLICT
+node     package.json              engines          >=18     consistent
+python   .python-version           python-version   3.9      CONFLICT
+python   .tool-versions            tool-versions    3.12.1   reference
+python   Dockerfile                dockerfile       3.12     consistent
+python   pyproject.toml            requires-python  >=3.10   consistent
+
+node: ci.yml=20 | .nvmrc=20 | .tool-versions=20.11.0 | Dockerfile=22 | package.json=>=18 → CONFLICT: Dockerfile
+python: .python-version=3.9 | .tool-versions=3.12.1 | Dockerfile=3.12 | pyproject.toml=>=3.10 → CONFLICT: .python-version
+RESULT: 2 runtimes have conflicts.
+```
+
+Çelişkiyi tek kaynaktan gider (Türkçe ve İngilizce destekler):
 
 ```console
 $ runtime-pin-sync sync --kaynak .tool-versions --dry-run
@@ -138,20 +159,45 @@ for c in celiski(pimler):   # list[Celiski]
 - TOML: stdlib `tomllib` (Python ≥ 3.11); 3.10 için yerleşik mini yedek
   ayrıştırıcı (`minitoml.py`).
 - YAML: iş akışı dosyaları YAML'ın küçük bir alt kümesini kullanır; ~170
-  satırlık ayrıştırıcı (`miniyaml.py`) o alt kümeyi tanır, gerisini
-  "okunamadı" uyarısıyla dürüstçe eler — PyYAML gerekmez.
+  satırlık ayrıştırıcı (`miniyaml.py`) o alt kümeyi tanır, harici kütüphane gerektirmez.
 - JSON/JSONC: stdlib `json` + `devcontainer.json` için yorum/son-virgül
   tolere eden ince bir katman.
 
 Her CI işinde çalışacak bir geliştirme aracı bir saniyede kurulmalı ve tedarik
 zinciri sürprizi çıkarmamalıdır.
 
+### Desteklenen YAML alt kümesi ve PyYAML / ruamel.yaml ile farkı
+
+İş akışı ayrıştırıcımız (`src/runtime_pin_sync/miniyaml.py`) kasıtlı olarak GitHub Actions (`.github/workflows/*.yml`) dosyalarının kullandığı alt kümeyi hedefler:
+
+- **Desteklenen söz dizimi**:
+  - Eşlemeler: anahtar-değer çiftleri (`name: test`, `with:`) ve girintili iç eşlemeler.
+  - Blok diziler (`- uses: actions/setup-node@v4`, `- run: ...`).
+  - Akış dizileri (`node-version: [20, 22]`, `[3.10, 3.12]`).
+  - Skalerler: tırnaksız metinler ve sayılar, tek tırnaklı (`'20'`) ve çift tırnaklı (`"3.12"`) dizgiler.
+  - Çok satırlı blok metinler: birebir (`|`, `|-`) ve katlanmış (`>`, `>-`).
+  - Yorumlar: satır başı veya satır içi `# ...`.
+
+- **Kapsam dışı bırakılan yapılar**:
+  - Çıpalar ve takma adlar (`&ref`, `*ref`)
+  - Birleştirme anahtarları (`<<: *defaults`)
+  - Özel veri tipi etiketleri (`!!str`, `!custom`)
+  - Karmaşık / çok satırlı anahtarlar (`? [anahtar]`)
+  - Girintide sekme (TAB) karakteri kullanımı (girinti belirsizliğini önlemek için hata fırlatır)
+
+- **Alışılmadık YAML durumunda davranış**:
+  Desteklenmeyen veya bozuk bir YAML ile karşılaşıldığında araç çökmez; o dosyayı açık bir uyarıyla (`okunamadı: desteklenmeyen YAML (...)` / `could not read: unsupported YAML (...)`) işaretler ve deponun kalanını denetlemeyi sürdürür.
+
+- **Neden PyYAML veya ruamel.yaml değil?**:
+  - *C-derleme / sistem bağımlılığı yok:* Linux, macOS ve Windows'ta Python 3.10+ kurulu her makinede derleyicisiz çalışır.
+  - *Tedarik zinciri riski sıfır:* Harici paket güncellemesi ve güvenlik açığı taşımaz.
+  - *Kontrollü hata sınırları:* Ayrıştırma hataları yakalanıp yerelleştirilmiş uyarılara dönüştürülür.
+
 ## Sınırlar (dürüst liste)
 
-- Komut satırı iletileri Türkçedir (bayrakların İngilizce takma adları vardır);
-  `--lang en` çıktı modu planlanmıştır (issue'lara bakın).
+- Komut satırı iletileri varsayılan olarak Türkçedir; `--lang en` veya `RUNTIME_PIN_SYNC_LANG=en` ile tam İngilizce desteklenir (tablo, çelişki özeti, sync ve hata/uyarı yolları dahil).
 - İş akışı dosyaları mini YAML alt kümesiyle okunur; alışıldık dışı YAML,
-  yanlış rapor yerine "okunamadı" uyarısı üretir.
+  yanlış rapor veya çökme yerine "okunamadı" uyarısı üretir.
 - Paket/bağımlılık sürümleri kapsam dışıdır (`renovate`/`syncpack` işi);
   derleyici/ABI sapması ve araç kurulumu da kapsam dışıdır.
 - Node `lts/<ad>` takma adları elle tutulan yerleşik tablodan çözülür

@@ -50,19 +50,39 @@ $ echo $?
 ```
 
 (Real output from `ornek-depolar/uyumsuz` in this repo. The CLI speaks Turkish
-by design; glossary: `uyumlu` = consistent, `ÇELİŞKİ` = conflict, `referans` =
-reference source, `dinamik, atlandı` = dynamic expression, skipped,
-`okunamadı` = could not parse. English flag aliases: `--source`, `--variable`.)
+by default and fully supports English via `--lang en` or `RUNTIME_PIN_SYNC_LANG=en`.
+English flag aliases: `--source`, `--variable`.)
 
-Fix it from a single source of truth:
+Run in English:
 
 ```console
-$ runtime-pin-sync sync --kaynak .tool-versions --dry-run
-.python-version:1  '3.9' → '3.12.1' (değiştirilecek)
-Dockerfile:2  '22' → '20.11.0' (değiştirilecek)
-$ runtime-pin-sync sync --kaynak .tool-versions     # real rewrite, only the target lines
-$ runtime-pin-sync . && echo clean
-SONUÇ: tüm sabitlemeler uyumlu ✓
+$ runtime-pin-sync . --lang en
+RUNTIME  SOURCE                    TYPE             PIN      STATUS
+-------  ------------------------  ---------------  -------  ----------
+node     .github/workflows/ci.yml  ci-adim          20       reference
+node     .nvmrc                    nvmrc            20       consistent
+node     .tool-versions            tool-versions    20.11.0  consistent
+node     Dockerfile                dockerfile       22       CONFLICT
+node     package.json              engines          >=18     consistent
+python   .python-version           python-version   3.9      CONFLICT
+python   .tool-versions            tool-versions    3.12.1   reference
+python   Dockerfile                dockerfile       3.12     consistent
+python   pyproject.toml            requires-python  >=3.10   consistent
+
+node: ci.yml=20 | .nvmrc=20 | .tool-versions=20.11.0 | Dockerfile=22 | package.json=>=18 → CONFLICT: Dockerfile
+python: .python-version=3.9 | .tool-versions=3.12.1 | Dockerfile=3.12 | pyproject.toml=>=3.10 → CONFLICT: .python-version
+RESULT: 2 runtimes have conflicts.
+```
+
+Fix it from a single source of truth (supports `--lang en` and Turkish):
+
+```console
+$ runtime-pin-sync sync --source .tool-versions --dry-run --lang en
+.python-version:1  '3.9' → '3.12.1' (to be changed)
+Dockerfile:2  '22' → '20.11.0' (to be changed)
+$ runtime-pin-sync sync --source .tool-versions
+$ runtime-pin-sync . --lang en && echo clean
+RESULT: all pins are consistent ✓
 clean
 ```
 
@@ -145,21 +165,46 @@ for c in celiski(pins):   # list[Celiski]
 
 - TOML: stdlib `tomllib` (Python ≥ 3.11) with a small built-in fallback
   parser for Python 3.10 (`minitoml.py`).
-- YAML: GitHub Actions files need only a small subset (maps, block/flow
-  sequences, scalars); a ~170-line parser (`miniyaml.py`) covers it and
-  refuses everything else with an "okunamadı" note — no PyYAML needed.
+- YAML: GitHub Actions files need only a focused subset; a self-contained
+  ~170-line parser (`miniyaml.py`) covers it without external dependencies.
 - JSON/JSONC: stdlib `json` plus a comment/trailing-comma tolerant wrapper
   for `devcontainer.json`.
 
 A dev tool that runs in every CI job should install in one second and never
 supply-chain-surprise you.
 
+### Supported YAML subset and comparison with PyYAML / ruamel.yaml
+
+Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally implements the subset required by CI workflow files (`.github/workflows/*.yml`):
+
+- **Supported syntax**:
+  - Mappings: key-value pairs (`name: build`, `with:`) and nested indented maps.
+  - Block lists (`- uses: actions/setup-node@v4`, `- run: ...`).
+  - Flow lists (`node-version: [20, 22]`, `[3.10, 3.12]`).
+  - Scalars: unquoted strings and numbers, single-quoted (`'20'`) and double-quoted (`"3.12"`) values.
+  - Multi-line block text: literal (`|`, `|-`) and folded (`>`, `>-`).
+  - Comments: `# ...` at line start or inline.
+
+- **Deliberately excluded syntax**:
+  - Anchors and aliases (`&anchor`, `*alias`)
+  - Merge keys (`<<: *defaults`)
+  - Custom data tags (`!!str`, `!custom`)
+  - Complex / multi-line keys (`? [key]`)
+  - Tab characters for indentation (rejected with a clear error to avoid ambiguous indentation)
+
+- **Behavior on exotic YAML**:
+  When encountering unsupported YAML features or syntax errors, `runtime-pin-sync` issues a clear warning (`could not read: unsupported YAML (...)` / `okunamadı: desteklenmeyen YAML (...)`) and continues evaluating the rest of the repository without crashing.
+
+- **Why not PyYAML or ruamel.yaml?**:
+  - *No compilation / C-extension requirements:* Works immediately across Linux, macOS, and Windows on any Python 3.10+ installation.
+  - *Zero supply-chain risk:* Eliminates third-party package vulnerabilities and dependency updates in developer environments.
+  - *Predictable error boundaries:* Workflow parsing errors degrade gracefully into localized warnings instead of throwing unhandled exceptions.
+
 ## Limitations (honest list)
 
-- CLI messages are Turkish (flags have English aliases); a `--lang en`
-  output mode is planned (see issues).
+- CLI output defaults to Turkish and fully supports English via `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`), covering status tables, conflict messages, sync outputs, error and warning paths.
 - CI workflow files use our minimal YAML subset; exotic YAML raises an
-  "okunamadı" warning instead of a false report.
+  informative warning instead of a false report or crash.
 - Package/dependency versions are out of scope (that's `renovate` /
   `syncpack`); so are compiler/ABI drift and tool installation.
 - Node `lts/<codename>` resolves via a built-in, manually kept table
@@ -168,7 +213,7 @@ supply-chain-surprise you.
   The moving alias `lts/*` is treated as *dynamic* — the table's newest entry
   is not presented as a current fact.
 - Prerelease suffixes (`1.85.0-rc1`) and `!=` exclusion ranges are reported
-  as "okunamadı" rather than mis-compared.
+  as warnings rather than mis-compared.
 
 ## Development
 

@@ -6,40 +6,84 @@ from typing import Any
 
 from .sabitleme import Celiski, Sabitleme
 
-__all__ = ["tablo", "json_sözlüğü"]
+__all__ = ["tablo", "json_sözlüğü", "uyari_cevir"]
+
+_CEVIRI_TABLOSU: list[tuple[str, str]] = [
+    ("okunamadı:", "could not read:"),
+    ("boş dosya", "empty file"),
+    ("boş belirteç", "empty token"),
+    ("desteklenmeyen YAML", "unsupported YAML"),
+    ("iş akışı bir eşleme değil", "workflow is not a mapping"),
+    ("geçersiz JSONC", "invalid JSONC"),
+    ("geçersiz JSON", "invalid JSON"),
+    ("geçersiz TOML", "invalid TOML"),
+    ("JSON bir nesne değil", "JSON is not an object"),
+    ("engines.node bir metin değil", "engines.node is not a string"),
+    ("requires-python bir metin değil", "requires-python is not a string"),
+    ("channel bir metin değil", "channel is not a string"),
+    ("go.mod içinde 'go' satırı yok", "no 'go' directive in go.mod"),
+    ("FROM satırı çözümlenemedi", "could not parse FROM line"),
+    ("bağlantı depo dışına işaret ediyor", "link points outside repository"),
+    ("depo sınırını aşıyor", "points outside repository"),
+    ("ön sürüm karşılaştırmaya girmez", "prerelease excluded from comparison"),
+    ("tanınmayan", "unrecognized"),
+    ("bulunamadı", "not found"),
+]
+
+
+def uyari_cevir(uyari: str | None, lang: str = "tr") -> str:
+    """Uyarı metnini istenen dile çevirir (varsayılan: tr)."""
+    if uyari is None:
+        return ""
+    if lang != "en":
+        return uyari
+    sonuc = uyari
+    for tr, en in _CEVIRI_TABLOSU:
+        sonuc = sonuc.replace(tr, en)
+    return sonuc
 
 
 def _durumlar(pimler: list[Sabitleme], celiskiler: list[Celiski],
-              kaynak: str | None) -> dict[tuple[str, str, str, str], str]:
+              kaynak: str | None, lang: str = "tr") -> dict[tuple[str, str, str, str], str]:
     dislanan = {(c.calisma_zamani, id(p)) for c in celiskiler for p in c.dislananlar}
     referanslar = {(c.calisma_zamani, c.referans_dosya) for c in celiskiler}
     durum: dict[tuple[str, str, str, str], str] = {}
+    is_en = (lang == "en")
     for p in pimler:
         if p.uyari:
-            d = "okunamadı"
+            d = "could not read" if is_en else "okunamadı"
         elif p.dinamik:
-            d = "dinamik, atlandı"
+            d = "dynamic, skipped" if is_en else "dinamik, atlandı"
         elif (p.calisma_zamani, id(p)) in dislanan:
-            d = "ÇELİŞKİ"
+            d = "CONFLICT" if is_en else "ÇELİŞKİ"
         elif kaynak is not None and p.dosya == kaynak or (p.calisma_zamani, p.dosya) in referanslar and p.ham == next(
                 c.referans_ham for c in celiskiler
                 if (c.calisma_zamani, c.referans_dosya) == (p.calisma_zamani, p.dosya)):
-            d = "referans"
+            d = "reference" if is_en else "referans"
         elif (p.calisma_zamani, p.dosya) in referanslar:
-            d = "referansla uyumlu"
+            d = "consistent with reference" if is_en else "referansla uyumlu"
         else:
-            d = "uyumlu"
+            d = "consistent" if is_en else "uyumlu"
         durum[(p.calisma_zamani, p.dosya, p.tur, p.ham)] = d
     return durum
 
 
 def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
-          kaynak: str | None = None) -> str:
+          kaynak: str | None = None, lang: str = "tr") -> str:
     """Sabit genişlikli insan tablosu + özet satırları."""
+    is_en = (lang == "en")
     if not pimler:
-        return "Hiç sürüm kaynağı bulunamadı (.nvmrc, Dockerfile, CI, pyproject...)."
-    durum = _durumlar(pimler, celiskiler, kaynak)
-    başlıklar = ("ÇALIŞMA ZAMANI", "KAYNAK", "TÜR", "SABİTLEME", "DURUM")
+        return (
+            "No version sources found (.nvmrc, Dockerfile, CI, pyproject...)."
+            if is_en
+            else "Hiç sürüm kaynağı bulunamadı (.nvmrc, Dockerfile, CI, pyproject...)."
+        )
+    durum = _durumlar(pimler, celiskiler, kaynak, lang=lang)
+    başlıklar = (
+        ("RUNTIME", "SOURCE", "TYPE", "PIN", "STATUS")
+        if is_en
+        else ("ÇALIŞMA ZAMANI", "KAYNAK", "TÜR", "SABİTLEME", "DURUM")
+    )
     satirlar = [
         (p.calisma_zamani, p.dosya, p.tur, p.ham or "-",
          durum[(p.calisma_zamani, p.dosya, p.tur, p.ham)])
@@ -59,25 +103,40 @@ def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
     satirlar_out.append("")
     if celiskiler:
         for c in celiskiler:
-            satirlar_out.append(c.mesaj)
+            if is_en:
+                msg = c.mesaj.replace(" → ÇELİŞKİ: ", " → CONFLICT: ")
+                satirlar_out.append(msg)
+            else:
+                satirlar_out.append(c.mesaj)
         n = len(celiskiler)
-        satirlar_out.append(f"SONUÇ: {n} çalışma zamanında çelişki bulundu.")
+        if is_en:
+            runtime_str = "runtime has conflicts" if n == 1 else "runtimes have conflicts"
+            satirlar_out.append(f"RESULT: {n} {runtime_str}.")
+        else:
+            satirlar_out.append(f"SONUÇ: {n} çalışma zamanında çelişki bulundu.")
     else:
-        satirlar_out.append("SONUÇ: tüm sabitlemeler uyumlu ✓")
+        if is_en:
+            satirlar_out.append("RESULT: all pins are consistent ✓")
+        else:
+            satirlar_out.append("SONUÇ: tüm sabitlemeler uyumlu ✓")
     uyarilar = [p for p in pimler if p.uyari or p.dinamik]
     if uyarilar:
         satirlar_out.append("")
-        satirlar_out.append("NOTLAR:")
+        satirlar_out.append("NOTES:" if is_en else "NOTLAR:")
         for p in uyarilar:
-            mesaj = p.uyari or "dinamik ifade: karşılaştırmaya girmedi"
+            if is_en:
+                mesaj = uyari_cevir(p.uyari, "en") if p.uyari else "dynamic expression: not compared"
+            else:
+                mesaj = p.uyari or "dinamik ifade: karşılaştırmaya girmedi"
             satirlar_out.append(f"  {p.dosya}: {mesaj}")
     return "\n".join(satirlar_out)
 
 
 def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
-                 kaynak: str | None = None) -> dict[str, Any]:
+                 kaynak: str | None = None, lang: str = "tr") -> dict[str, Any]:
     """JSON çıktı şeması (--json). Dosya yazmaz, sözlük döner."""
-    durum = _durumlar(pimler, celiskiler, kaynak)
+    durum = _durumlar(pimler, celiskiler, kaynak, lang=lang)
+    is_en = (lang == "en")
     return {
         "sabitlemeler": [
             {
@@ -86,7 +145,7 @@ def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
                 "tur": p.tur,
                 "ham": p.ham,
                 "durum": durum[(p.calisma_zamani, p.dosya, p.tur, p.ham)],
-                "uyari": p.uyari,
+                "uyari": uyari_cevir(p.uyari, "en") if (is_en and p.uyari) else p.uyari,
             }
             for p in pimler
         ],
@@ -98,11 +157,14 @@ def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
                     {"dosya": p.dosya, "tur": p.tur, "ham": p.ham}
                     for p in c.dislananlar
                 ],
-                "mesaj": c.mesaj,
+                "mesaj": c.mesaj.replace(" → ÇELİŞKİ: ", " → CONFLICT: ") if is_en else c.mesaj,
             }
             for c in celiskiler
         ],
-        "uyarilar": [p.uyari for p in pimler if p.uyari],
+        "uyarilar": [
+            uyari_cevir(p.uyari, "en") if is_en else p.uyari
+            for p in pimler if p.uyari
+        ],
         "dinamikler": [
             {"dosya": p.dosya, "tur": p.tur, "ham": p.ham}
             for p in pimler if p.dinamik

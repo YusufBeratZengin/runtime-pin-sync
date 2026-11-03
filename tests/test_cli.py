@@ -126,3 +126,85 @@ def test_version_bayrağı(capsys):
 
 def test_ingilizce_bayraklar(tmp_path, capsys):
     assert main([f"{PROJE}/uyumsuz", "--source", ".tool-versions"]) == 1
+
+
+def test_cli_ingilizce_tablo_ve_ozet(capsys):
+    assert main([f"{PROJE}/uyumsuz", "--lang", "en"]) == 1
+    out = capsys.readouterr().out
+    assert "RUNTIME" in out and "SOURCE" in out and "STATUS" in out
+    assert "CONFLICT: Dockerfile" in out
+    assert "RESULT: 2 runtimes have conflicts." in out
+
+
+def test_cli_ingilizce_uyumlu(capsys):
+    assert main([f"{PROJE}/tutarli", "--lang", "en"]) == 0
+    out = capsys.readouterr().out
+    assert "RESULT: all pins are consistent ✓" in out
+
+
+def test_cli_ingilizce_hatalar(capsys):
+    # kaynak yok hatası
+    assert main([f"{PROJE}/uyumsuz", "--lang", "en", "--source", "nonexistent.txt"]) == 2
+    err = capsys.readouterr().err
+    assert "error: source not found or yields no versions: nonexistent.txt" in err
+
+    # sync için kaynak eksik hatası
+    assert main(["sync", f"{PROJE}/tutarli", "--lang", "en"]) == 2
+    err = capsys.readouterr().err
+    assert "error: sync requires --source (single source of truth file)" in err
+
+    # bozuk değişken hatası
+    assert main([f"{PROJE}/tutarli", "--lang", "en", "--variable", "invalid_var"]) == 2
+    err = capsys.readouterr().err
+    assert "error: --variable must be in 'NAME=VALUE' format: 'invalid_var'" in err
+
+
+def test_cli_ingilizce_sync_kuru_calis(tmp_path, capsys):
+    depo = tmp_path / "depo_en"
+    yaz(depo, ".tool-versions", "node 20.11.0\n")
+    yaz(depo, ".nvmrc", "22\n")
+    assert main(["sync", str(depo), "--source", ".tool-versions", "--dry-run", "--lang", "en"]) == 0
+    out = capsys.readouterr().out
+    assert "(to be changed)" in out
+
+
+def test_cli_ingilizce_sync_elle_duzeltme(tmp_path, capsys):
+    depo = tmp_path / "depo_en_elle"
+    yaz(depo, ".tool-versions", "node 20.11.0\n")
+    yaz(depo, "package.json", '{"engines": {"node": ">=22"}}\n')
+    assert main(["sync", str(depo), "--source", ".tool-versions", "--lang", "en"]) == 1
+    out = capsys.readouterr().out
+    assert "MUST BE FIXED MANUALLY:" in out
+
+
+def test_cli_ingilizce_sync_zaten_uyumlu(capsys):
+    assert main(["sync", f"{PROJE}/tutarli", "--source", ".nvmrc", "--lang", "en"]) == 0
+    out = capsys.readouterr().out
+    assert "nothing to sync - all pins already match the source." in out
+
+
+def test_cli_ingilizce_bozuk_depo_notlari(capsys):
+    assert main([f"{PROJE}/bozuk", "--lang", "en"]) == 0
+    out = capsys.readouterr().out
+    assert "NOTES:" in out
+    assert "could not read" in out or "dynamic expression" in out
+
+
+def test_cli_lang_ortam_degiskeni(monkeypatch, capsys):
+    monkeypatch.setenv("RUNTIME_PIN_SYNC_LANG", "en")
+    assert main([f"{PROJE}/tutarli"]) == 0
+    out = capsys.readouterr().out
+    assert "RESULT: all pins are consistent ✓" in out
+
+
+def test_temiz_ortamda_pytest_src_bulur():
+    import os
+    import subprocess
+    import sys
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    # PYTHONPATH olmaksızın pytest'in pyproject.toml pythonpath=["src"] ile çalıştığını doğrula
+    cmd = [sys.executable, "-m", "pytest", "tests/test_bulucular.py", "-q"]
+    res = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    assert res.returncode == 0, f"pytest başarısız: {res.stderr}\n{res.stdout}"
+
