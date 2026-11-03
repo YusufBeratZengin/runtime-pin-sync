@@ -23,10 +23,13 @@ ensure() {  # $1 = import adı, $2 = pip paketi
     "$PY" -m pip install -q "$2"
   fi
 }
-ensure pytest pytest
-ensure pytest_cov pytest-cov
-ensure ruff ruff
-ensure mypy mypy
+ensure pytest "pytest>=8.0.0,<10.0.0"
+ensure pytest_cov "pytest-cov>=5.0.0,<8.0.0"
+ensure ruff "ruff>=0.8.0,<1.0.0"
+ensure mypy "mypy>=1.10.0,<2.0.0"
+
+# Temiz klonda src yolunu ortamda da garantiye al
+export PYTHONPATH="src${PYTHONPATH:+:${PYTHONPATH}}"
 
 echo "== lint (ruff) =="
 "$PY" -m ruff check src tests scripts

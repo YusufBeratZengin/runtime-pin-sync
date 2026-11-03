@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Geliştirme bağımlılıkları
+      - name: Geliştirme bağımlılıkları (sürüm sınırları pyproject.toml [dev]'de tanımlıdır)
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]"
@@ -34,6 +34,9 @@ jobs:
       - name: Kod kokusu kendi kendine test (örnek tutarlı depo → 0)
         shell: bash
         run: python -m runtime_pin_sync.cli ornek-depolar/tutarli
+      - name: Kod kokusu kendi kendine test (örnek tutarlı depo, İngilizce kip → 0)
+        shell: bash
+        run: python -m runtime_pin_sync.cli ornek-depolar/tutarli --lang en
       - name: Kod kokusu kendi kendine test (örnek uyumsuz depo → 1)
         shell: bash
         # uyumsuz Depo BİLEREK çelişkili; çıkış kodu TAM 1 olmalı
