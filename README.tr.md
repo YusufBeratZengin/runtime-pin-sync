@@ -129,10 +129,16 @@ runtime-pin-sync sync --kaynak .tool-versions             # sapmaları yeniden y
   anlamlı olmayan her satır **ELLE DÜZELTİLMELİ** listesine yazılır — asla
   sessizce değiştirilmez;
 - yazım hedefleri denetlenir: symlink'li dosyalara ve depo dışına çözülen
-  yollara asla dokunulmaz — sınır OKUMALARI da korur (depo dışına çıkan
+  yollara asla yazılmaz. Sınır OKUMALARI da korur: depo **dışına** çıkan
   symlink'li sürüm dosyası ya da `*-version-file: ../..` hedefi, içeriği
-  rapora sızmadan okunmadan reddedilir); dosyalar bayt düzeyinde okunup
-  yazılır, CRLF ve karışık satır sonları hedef satır dışında aynen kalır;
+  rapora sızmadan okunmadan reddedilir. Depo **içinde** kalan dosya bağlantısı
+  depo içeriğidir — karşılaştırma için okunur, ama üzerinden asla yazılmaz
+  (her zaman elle düzeltilmeli listesine düşer); dosyalar bayt düzeyinde
+  okunup yazılır, CRLF ve karışık satır sonları hedef satır dışında aynen kalır;
+- yazım atomiktir: yeni içerik aynı dizindeki geçici dosyaya yazılıp
+  `fsync` edilir, sonra `os.replace` ile yerine konur. Kesilen ya da hata
+  veren bir yazım hedef dosyayı bayt bayt eski hâlinde bırakır, geride
+  geçici dosya kalmaz; dosyanın izinleri korunur;
 - aynı sabitleme birden çok satırda geçiyorsa TÜM satırlar yazılır; yazımdan
   sonra depo yeniden taranır, kalan çelişki başarı sayılmaz (exit 1);
 - `--dry-run` dosyaların bit bit değişmediğini garanti eder (testli).
@@ -213,6 +219,11 @@ zinciri sürprizi çıkarmamalıdır.
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 bash scripts/check.sh    # ruff + mypy --strict + pytest --cov-fail-under=85
+
+# paketleme kontrolü (CI'daki `paket` işiyle aynı fikir: yalnız wheel, PyPI yok)
+python -m build --outdir dist
+python -m venv .venv-wheel && .venv-wheel/bin/pip install --no-index \
+    --find-links dist runtime-pin-sync
 ```
 
 ## Lisans

@@ -9,6 +9,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added
 - `--lang {tr,en}` CLI option and `RUNTIME_PIN_SYNC_LANG` environment variable support for full English output across tables, conflict reports, sync operations, and error/warning paths.
 - Documented supported YAML subset in `miniyaml.py` with behavioral examples and explicit architectural comparison with PyYAML / ruamel.yaml in README (EN and TR).
+- CI `paket` job builds sdist + wheel (`python -m build`) and installs **only the
+  wheel** into a clean venv with `--no-index --find-links` (proves the
+  zero-runtime-dependency claim), then runs `pip check`, `--version` and both
+  example repos through the installed console script; `build` is part of the
+  `[dev]` extra and the wheel-only check is documented in README,
+  README.tr and CONTRIBUTING.
 
 ### Fixed
 - Fixed clean-clone pytest collection failures (`ModuleNotFoundError: No module named 'runtime_pin_sync'`) by adding `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` and defining `export PYTHONPATH="src"` in `scripts/check.sh`.
@@ -86,6 +92,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   installs both) model the UNION, not just the first entry — no more
   false conflicts against `.python-version=3.11.8`.
 
+### Fixed (independent review round 4)
+- `sync` writes are now atomic: the rewritten content goes to a sibling temp
+  file, is flushed and `fsync`ed, then swapped in with `os.replace`. A failed
+  or interrupted write leaves the target byte-for-byte unchanged, removes the
+  temp file and keeps the original file mode (regression tests: forced
+  `os.replace` failure + mode preservation; previously `write_bytes` truncated
+  the target in place).
+- README (EN/TR) now states the real symlink contract instead of claiming every
+  symlinked version file is refused: a version file whose symlink resolves
+  **outside** the repo is refused before reading (no content reaches a report),
+  while a symlink that stays **inside** the repo is repo content — read for
+  comparison, never written through, so it always lands in the manual list.
+  A regression test pins both halves.
+- The 0.1.0 coverage/test figures were stale (93% / 149); they now match the
+  measured gate output.
+
 ### Planned
 - `--sdkmanrc` and Ruby `.ruby-version` finders
 - GitHub Action wrapper (`action.yml`) + pre-commit hook id
@@ -119,4 +141,5 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   built-in minimal YAML subset parser, JSONC-tolerant devcontainer reader
 - Node LTS alias table (gallium→16, hydrogen→18, iron→20, jod→22,
   krypton→24); unknown aliases skipped, never guessed
-- 149 tests, 93% coverage, ruff + strict mypy, Linux/Windows/macOS CI
+- 218 tests, 92.32% coverage (Windows/py3.11 gate run), ruff + strict mypy,
+  Linux/Windows/macOS CI
