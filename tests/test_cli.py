@@ -1,6 +1,7 @@
 """CLI sözleşmesi: çıkış kodları, --json, sync, --degisken, --kaynak."""
 
 import json
+import os
 from pathlib import Path
 
 from conftest import yaz
@@ -252,3 +253,28 @@ def test_cli_ingilizce_uyarilar_tamamen_ingilizce(tmp_path, capsys):
     for tr in ("okunamadı", "boş dosya", "çözümlenemedi", "desteklenmeyen",
                "sekme", "sonek"):
         assert tr not in out, f"İngilizce çıktıda Türkçe uyarı: {tr}"
+
+
+def test_tarama_eksikse_sıfır_dönmez(tmp_path, monkeypatch, capsys):
+    """Okunamayan dizin "temiz sonuç" gibi görünmemeli: check ve sync exit 2."""
+    depo = tmp_path / "eksik_tarama"
+    yaz(depo, ".nvmrc", "20")
+    (depo / "kilitli").mkdir()
+    gerçek_walk = os.walk
+
+    def walk(kok, *a, **k):
+        onerror = k["onerror"]
+        for yürütülen, dizinler, dosyalar in gerçek_walk(kok):
+            dizinler[:] = [d for d in dizinler if d != "kilitli"]
+            if Path(yürütülen) == depo:
+                onerror(PermissionError(13, "Permission denied",
+                                        str(depo / "kilitli")))
+            yield yürütülen, dizinler, dosyalar
+
+    monkeypatch.setattr(os, "walk", walk)
+    assert main([str(depo)]) == 2
+    assert "tarama eksik" in capsys.readouterr().err
+    assert main(["sync", str(depo), "--kaynak", ".nvmrc", "--dry-run"]) == 2
+    assert "tarama eksik" in capsys.readouterr().err
+    assert main([str(depo), "--lang", "en"]) == 2
+    assert "scan incomplete" in capsys.readouterr().err

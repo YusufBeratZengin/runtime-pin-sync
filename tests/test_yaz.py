@@ -346,3 +346,15 @@ def test_boş_ya_da_dinamik_kaynak_senkronla_da_hata(tmp_path):
     yaz(tmp_path, ".tool-versions", "node latest\n")
     with pytest.raises(ValueError, match="sürüm üretmiyor"):
         senkronla(tmp_path, ".tool-versions", True)
+
+
+def test_sdkmanrc_yalnız_java_satırı_yeniden_yazılır(tmp_path):
+    yaz(tmp_path, ".java-version", "21" + chr(10))
+    yaz(tmp_path, ".sdkmanrc",
+        "# java sürümü" + chr(10) + "java=17.0.2+8" + chr(10) + "maven=3.9.6" + chr(10))
+    otomatik, elle = senkronla(tmp_path, ".java-version")
+    assert elle == []
+    assert [(d.dosya, d.satir, d.eski, d.yeni) for d in otomatik] == [
+        (".sdkmanrc", 2, "17.0.2+8", "21")]
+    assert (tmp_path / ".sdkmanrc").read_text(encoding="utf-8") == (
+        "# java sürümü" + chr(10) + "java=21" + chr(10) + "maven=3.9.6" + chr(10))

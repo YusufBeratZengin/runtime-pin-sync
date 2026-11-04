@@ -20,7 +20,7 @@ from . import __version__
 from .dil import m
 from .karsilastir import celiski
 from .rapor import json_sözlüğü, tablo
-from .tara import kaynak_kontrol, tara
+from .tara import kaynak_kontrol, tara, tarama_hatalari
 from .yaz import norm_yol, senkronla
 
 __all__ = ["main"]
@@ -96,6 +96,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         pimler = tara(args.yol, degiskenler, lang=lang)
     except (ValueError, OSError) as exc:
         print(f"{err_prefix}: {exc}", file=sys.stderr)
+        return 2
+
+    # Eksik tarama "uyumlu" diye sunulamaz: görülmeyen dizin çelişki saklıyor
+    # olabilir. check ve sync aynı sözleşmeyi uygular (exit 2).
+    eksik = tarama_hatalari(pimler)
+    if eksik:
+        print(f"{err_prefix}: {m(lang, 'scan_incomplete', dizinler=', '.join(p.dosya for p in eksik))}",
+              file=sys.stderr)
         return 2
 
     if norm_kaynak is not None and not kaynak_kontrol(pimler, norm_kaynak):

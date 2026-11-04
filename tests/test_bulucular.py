@@ -228,3 +228,16 @@ def test_mise_bozuk_ve_araçsız():
     assert p.durum == "okunamadı"
     assert araclar.mise("mise.toml", '[settings]\nquiet = true\n') == []
     assert araclar.mise("mise.toml", '[tools]\nnode = ""\n') == []
+
+
+def test_java_sdkmanrc():
+    (p,) = java.sdkmanrc(".sdkmanrc", "# ekip sürümü" + chr(10) + "java=17.0.2+8" + chr(10) + "maven=3.9.6" + chr(10))
+    assert (p.ham, p.satir, p.kullanilabilir) == ("17.0.2+8", 2, True)
+    # dağıtım eki (-tem) sürümü değiştirmez
+    (t,) = java.sdkmanrc(".sdkmanrc", "java=21.0.1-tem" + chr(10))
+    assert t.ham == "21.0.1" and t.kullanilabilir
+    (b,) = java.sdkmanrc(".sdkmanrc", "java=" + chr(10))
+    assert b.durum == "okunamadı" and b.uyari
+    (d,) = java.sdkmanrc(".sdkmanrc", "java=latest" + chr(10))
+    assert d.dinamik and not d.kullanilabilir
+    assert java.sdkmanrc(".sdkmanrc", "maven=3.9.6" + chr(10)) == []

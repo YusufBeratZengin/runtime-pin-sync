@@ -91,3 +91,19 @@ def test_uyari_cevir_fonksiyonu():
     assert uyari_cevir("okunamadı: boş dosya", "tr") == "okunamadı: boş dosya"
     assert uyari_cevir(None, "en") == ""
 
+
+
+def test_tablo_tur_etiketi_dile_gore_cevrilir():
+    pimler = [pin("node", "ci.yml", "ci-adim", "20")]
+    assert "ci-step" in tablo(pimler, [], lang="en")
+    assert "ci-adım" in tablo(pimler, [])
+    # JSON'daki tur KARARLI kimliktir, çevrilmez
+    assert json_sözlüğü(pimler, [], lang="en")["sabitlemeler"][0]["tur"] == "ci-adim"
+
+
+def test_tablo_ingilizce_dizin_uyarisi_etiketi():
+    pimler = [Sabitleme("bilinmeyen", "kilitli", "dizin", "",
+                        uyari="okunamadı: dizin taranamadı (Permission denied)")]
+    out = tablo(pimler, [], lang="en")
+    assert "unknown" in out and "directory" in out
+    assert "could not read: directory not scanned" in out

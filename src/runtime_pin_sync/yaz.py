@@ -29,7 +29,7 @@ from .dil import m
 from .docker import _FROM_RE, imaj_ad_ve_etiket, imaj_coz
 from .karsilastir import celiski
 from .sabitleme import Sabitleme
-from .tara import kaynak_kontrol, tara
+from .tara import kaynak_kontrol, tara, tarama_hatalari
 from .versiyon import sabit_belirtec_mi
 
 __all__ = ["Degisiklik", "senkronla", "YAZILABİLİR_TÜRLER", "norm_yol"]
@@ -49,6 +49,7 @@ def _norm_yol(yol: str) -> str:
 YAZILABİLİR_TÜRLER = frozenset({
     "nvmrc", "node-version", "python-version", "go-version", "java-version",
     "dockerfile", "tool-versions", "mise", "engines", "ci-adim", "pom",
+    "sdkmanrc",
 })
 
 
@@ -75,6 +76,10 @@ def senkronla(
     """
     kok = Path(yol)
     pimler = tara(kok, degiskenler, lang=lang)
+    eksik = tarama_hatalari(pimler)
+    if eksik:
+        raise ValueError(m(lang, "scan_incomplete",
+                           dizinler=", ".join(p.dosya for p in eksik)))
     norm = _norm_yol(kaynak)
     if not kaynak_kontrol(pimler, norm):
         raise ValueError(m(lang, "source_unusable", kaynak=kaynak))

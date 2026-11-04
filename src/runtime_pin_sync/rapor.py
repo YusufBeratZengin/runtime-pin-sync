@@ -6,10 +6,29 @@ from typing import Any
 
 from .sabitleme import Celiski, Sabitleme
 
-__all__ = ["tablo", "json_sözlüğü", "uyari_cevir"]
+__all__ = ["tablo", "json_sözlüğü", "uyari_cevir", "tur_etiketi"]
+
+#: Tür (``tur``) alanı JSON'da KARARLI bir kimliktir; insan tablosunda ise
+#: dile göre okunur etikete çevrilir. Yalnız Türkçe kalan kimlikler listelenir;
+#: burada olmayan kimlikler (``nvmrc``, ``engines``, ``tool-versions`` ...)
+#: zaten dilden bağımsız teknik adlardır.
+_TUR_ETIKETLERI: dict[str, tuple[str, str]] = {
+    "ci-adim": ("ci-adım", "ci-step"),
+    "ci-matriks": ("ci-matriks", "ci-matrix"),
+    "ci-dosya": ("ci-dosya", "ci-file"),
+    "ci-eylem": ("ci-eylem", "ci-action"),
+    "dosya": ("dosya", "file"),
+    "dizin": ("dizin", "directory"),
+}
+
+#: Çalışma zamanı sütunundaki Türkçe yer tutucu da insan yüzeyinde çevrilir.
+_CALISMA_ZAMANI_ETIKETLERI: dict[str, tuple[str, str]] = {
+    "bilinmeyen": ("bilinmeyen", "unknown"),
+}
 
 _CEVIRI_TABLOSU: list[tuple[str, str]] = [
     ("okunamadı:", "could not read:"),
+    ("dizin taranamadı", "directory not scanned"),
     ("boş dosya", "empty file"),
     ("boş belirteç", "empty token"),
     ("sürüm belirteçi çözümlenemedi", "could not parse version token"),
@@ -38,6 +57,18 @@ _CEVIRI_TABLOSU: list[tuple[str, str]] = [
     ("tanınmayan", "unrecognized"),
     ("bulunamadı", "not found"),
 ]
+
+
+def tur_etiketi(tur: str, lang: str = "tr") -> str:
+    """Tür kimliğinin insan-okur etiketi (tr/en); JSON kimliği değişmez."""
+    tr, en = _TUR_ETIKETLERI.get(tur, (tur, tur))
+    return en if lang == "en" else tr
+
+
+def calisma_zamani_etiketi(ad: str, lang: str = "tr") -> str:
+    """Çalışma zamanı sütunu etiketi (``bilinmeyen`` -> ``unknown``)."""
+    tr, en = _CALISMA_ZAMANI_ETIKETLERI.get(ad, (ad, ad))
+    return en if lang == "en" else tr
 
 
 def uyari_cevir(uyari: str | None, lang: str = "tr") -> str:
@@ -94,7 +125,8 @@ def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
         else ("ÇALIŞMA ZAMANI", "KAYNAK", "TÜR", "SABİTLEME", "DURUM")
     )
     satirlar = [
-        (p.calisma_zamani, p.dosya, p.tur, p.ham or "-",
+        (calisma_zamani_etiketi(p.calisma_zamani, lang), p.dosya,
+         tur_etiketi(p.tur, lang), p.ham or "-",
          durum[(p.calisma_zamani, p.dosya, p.tur, p.ham)])
         for p in pimler
     ]

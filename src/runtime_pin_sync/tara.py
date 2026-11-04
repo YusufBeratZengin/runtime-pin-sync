@@ -16,7 +16,7 @@ from .dil import m
 from .docker import devcontainer, dockerfile
 from .sabitleme import Sabitleme
 
-__all__ = ["tara", "ATLANAN_DİZİNLER"]
+__all__ = ["tara", "tarama_hatalari", "ATLANAN_DİZİNLER"]
 
 ATLANAN_DİZİNLER = frozenset({
     ".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv",
@@ -28,7 +28,8 @@ ATLANAN_DİZİNLER = frozenset({
 BİLİNEN_DOSYALAR = frozenset({
     ".nvmrc", ".node-version", "package.json", ".python-version",
     "pyproject.toml", "go.mod", ".go-version", "rust-toolchain",
-    "rust-toolchain.toml", ".java-version", "pom.xml", ".tool-versions",
+    "rust-toolchain.toml", ".java-version", ".sdkmanrc", "pom.xml",
+    ".tool-versions",
     "mise.toml", ".mise.toml", "devcontainer.json",
 })
 
@@ -49,7 +50,24 @@ def tara(
     if not kok.is_dir():
         raise ValueError(m(lang, "not_a_repo", yol=yol))
     sonuc: dict[tuple[str, str, str, str], Sabitleme] = {}
-    for yürütülen, dizinler, dosyalar in os.walk(kok):
+    okunamayan: list[Sabitleme] = []
+
+    def _dizin_hatası(exc: OSError) -> None:
+        """``os.walk`` hatasını YUTMA: eksik tarama görünür bir uyarı bırakır.
+
+        Varsayılan davranışta okunamayan dizin sessizce atlanır ve o dizindeki
+        sabitlemeler hiç görünmez — çıktı "her şey uyumlu" gibi okunurdu.
+        """
+        ham = Path(exc.filename) if exc.filename else kok
+        try:
+            göreli = ham.resolve().relative_to(kok.resolve()).as_posix() or "."
+        except (OSError, ValueError):
+            göreli = str(ham)
+        hata = exc.strerror or str(exc)
+        okunamayan.append(Sabitleme("bilinmeyen", göreli, "dizin", "",
+                                    uyari=m(lang, "dir_unreadable", hata=hata)))
+
+    for yürütülen, dizinler, dosyalar in os.walk(kok, onerror=_dizin_hatası):
         dizinler[:] = sorted(d for d in dizinler if d not in ATLANAN_DİZİNLER)
         for ad in sorted(dosyalar):
             alt = Path(yürütülen) / ad
@@ -68,6 +86,8 @@ def tara(
                     tüm = onceki.tüm_satırlar or (
                         (onceki.satir,) if onceki.satir else ())
                     onceki.tüm_satırlar = tuple(dict.fromkeys(tüm + (p.satir,)))
+    for p in okunamayan:
+        sonuc.setdefault((p.calisma_zamani, p.dosya, p.tur, p.ham), p)
     return sorted(sonuc.values(), key=lambda p: (p.calisma_zamani, p.dosya,
                                                  p.satir or 0, p.tur))
 
@@ -110,6 +130,8 @@ def _dosya_işle(
             return rust.kanal_toml(göreli, _metin(yol))
         if ad == ".java-version":
             return java.surum_dosyasi(göreli, _metin(yol))
+        if ad == ".sdkmanrc":
+            return java.sdkmanrc(göreli, _metin(yol))
         if ad == "pom.xml":
             return java.pom(göreli, _metin(yol))
         if ad == ".tool-versions":
@@ -130,6 +152,15 @@ def _dosya_işle(
 
 def _metin(yol: Path) -> str:
     return yol.read_text(encoding="utf-8", errors="replace")
+
+
+def tarama_hatalari(pimler: list[Sabitleme]) -> list[Sabitleme]:
+    """Taranamayan dizinlerin uyarıları — tarama EKSİK demektir.
+
+    Bu uyarı varken çelişki listesinin boş olması "depo temiz" anlamına
+    gelmez: okunamayan dizin görülmemiş sabitlemeler barındırabilir.
+    """
+    return [p for p in pimler if p.tur == "dizin" and p.uyari]
 
 
 def kaynak_kontrol(pimler: list[Sabitleme], kaynak: str) -> bool:

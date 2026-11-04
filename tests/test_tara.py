@@ -1,5 +1,6 @@
 """Depo taraması uçtan uca testler."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -125,3 +126,34 @@ def test_kaynak_kontrol_boş_ya_da_çözülemeyen_dosyayı_reddeder(tmp_path):
     pimler = tara(tmp_path)
     assert not any(p.kullanilabilir for p in pimler if p.dosya == ".python-version")
     assert not kaynak_kontrol(pimler, ".python-version")
+
+
+def test_dizin_okuma_hatası_sessizce_yutulmaz(tmp_path, monkeypatch):
+    """os.walk hatası görünür bir uyarı bırakmalı, tarama eksik görünmemeli."""
+    yaz(tmp_path, ".nvmrc", "20")
+    (tmp_path / "kilitli").mkdir()
+    hata = PermissionError(13, "Permission denied", str(tmp_path / "kilitli"))
+    gerçek_walk = os.walk
+
+    def walk(kok, *a, **k):
+        onerror = k.get("onerror")
+        assert onerror is not None, "os.walk onerror olmadan çağrılmamalı"
+        for yürütülen, dizinler, dosyalar in gerçek_walk(kok):
+            dizinler[:] = [d for d in dizinler if d != "kilitli"]
+            if Path(yürütülen) == Path(kok):
+                onerror(hata)
+            yield yürütülen, dizinler, dosyalar
+
+    monkeypatch.setattr(os, "walk", walk)
+    pimler = tara(tmp_path)
+    eksik = [p for p in pimler if p.tur == "dizin"]
+    assert [p.dosya for p in eksik] == ["kilitli"]
+    assert "Permission denied" in (eksik[0].uyari or "")
+    # hata tüm taramayı düşürmez: okunabilen pim hâlâ raporlanır
+    assert any(p.ham == "20" and p.kullanilabilir for p in pimler)
+
+
+def test_sdkmanrc_tarama_kaynağı(tmp_path):
+    yaz(tmp_path, ".sdkmanrc", "java=21.0.1-tem" + chr(10))
+    (p,) = tara(tmp_path)
+    assert (p.calisma_zamani, p.tur, p.ham) == ("java", "sdkmanrc", "21.0.1")

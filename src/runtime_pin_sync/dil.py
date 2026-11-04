@@ -71,6 +71,15 @@ MESAJLAR: dict[str, tuple[str, str]] = {
         "{dosya}: hedef depo dışında ({cozum})",
         "{dosya}: target is outside the repository ({cozum})",
     ),
+    "dir_unreadable": (
+        "okunamadı: dizin taranamadı ({hata})",
+        "could not read: directory not scanned ({hata})",
+    ),
+    "scan_incomplete": (
+        "tarama eksik — okunamayan dizin(ler): {dizinler}; sonuç 'temiz' sayılmaz",
+        "scan incomplete — unreadable director(y/ies): {dizinler}; the result "
+        "is not a clean pass",
+    ),
 }
 
 
