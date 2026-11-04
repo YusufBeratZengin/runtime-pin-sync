@@ -108,6 +108,29 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The 0.1.0 coverage/test figures were stale (93% / 149); they now match the
   measured gate output.
 
+### Fixed (independent review: unusable sources, mise unions, English reasons)
+- `--kaynak` / `--source` now requires the source file to yield at least one
+  *usable* version. An empty, unreadable or unparseable file (`.nvmrc` with no
+  token, `.python-version: not-a-version`) used to pass the check and let
+  `check`/`sync` exit 0 with nothing compared; both now exit 2 with
+  "source ... yields no versions".
+- `mise.toml` version lists (`node = ["22", "24"]`) are modeled as ONE union
+  pin in default checks too, exactly like `.tool-versions` multi-value lines.
+  Previously each member became a separate pin, so the comparator could report
+  `24` as conflicting with a reference of `22` even though both are installed.
+  A list with any dynamic/unknown member is skipped as a whole; a list is
+  never auto-rewritten and never contributes a single member as reference.
+- `sync` and scan reasons/errors are produced from a TR/EN message catalogue
+  (`dil.py`) instead of post-hoc string patching, so `--lang en` no longer
+  leaves Turkish reasons such as "satırda tek ve bağımsız değil" or
+  "dosya okunamadı". The warning translation table now covers version-token,
+  Docker tag-suffix, prerelease and YAML indentation messages as well.
+- README (EN/TR) narrowed the English claim to the human-readable surface and
+  states that JSON keys stay stable; examples now show the directory they run
+  in. Added a documented boundary section for the Go (`go` = minimum,
+  `toolchain` = exact) and Java (`pom.xml` first single-line literal element,
+  no parent validation, no profiles) readers.
+
 ### Planned
 - `--sdkmanrc` and Ruby `.ruby-version` finders
 - GitHub Action wrapper (`action.yml`) + pre-commit hook id

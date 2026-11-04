@@ -25,6 +25,7 @@ Python ≥ 3.10. **Sıfır çalışma zamanı bağımlılığı** (nedeni aşağ
 ## 30 saniyelik örnek
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync .
 ÇALIŞMA ZAMANI  KAYNAK                    TÜR              SABİTLEME  DURUM
 --------------  ------------------------  ---------------  ---------  --------
@@ -45,11 +46,18 @@ $ echo $?
 1
 ```
 
-(Bu depo içindeki `ornek-depolar/uyumsuz` deposunun GERÇEK çıktısıdır. Varsayılan dil Türkçedir; `--lang en` veya `RUNTIME_PIN_SYNC_LANG=en` ile tam İngilizce desteklenir.)
+(Bu depo içindeki `ornek-depolar/uyumsuz` deposunun GERÇEK çıktısıdır; komut o
+dizinde çalıştırılmıştır. Aşağıdaki her örnekte komutun hangi dizinde
+çalıştığı yazılıdır. Varsayılan dil Türkçedir; insan tarafından okunan yüzey —
+tablolar, çelişki özetleri, sync planı ve tüm elle-düzeltme gerekçeleri, hata
+ve uyarı metinleri — `--lang en` veya `RUNTIME_PIN_SYNC_LANG=en` ile
+İngilizce üretilir. JSON alan adları API kararlılığı için iki kipte de
+Türkçedir.)
 
 İngilizce kipte çalıştırma:
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync . --lang en
 RUNTIME  SOURCE                    TYPE             PIN      STATUS
 -------  ------------------------  ---------------  -------  ----------
@@ -71,6 +79,7 @@ RESULT: 2 runtimes have conflicts.
 Çelişkiyi tek kaynaktan gider (Türkçe ve İngilizce destekler):
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync sync --kaynak .tool-versions --dry-run
 .python-version:1  '3.9' → '3.12.1' (değiştirilecek)
 Dockerfile:2  '22' → '20.11.0' (değiştirilecek)
@@ -90,6 +99,42 @@ temiz
 | Rust | `rust-toolchain`, `rust-toolchain.toml`, Dockerfile `FROM rust:…`, `dtolnay/rust-toolchain` |
 | Java | `.java-version`, `pom.xml` (`maven.compiler.release` vb.), Dockerfile `FROM eclipse-temurin:…` vb., `actions/setup-java` + matris |
 
+### Ayrıştırıcı sınırları: Go ve Java
+
+İki okuyucu da bilinçli olarak satır odaklıdır; nerede durduklarını bilmek
+yanlış güvene engel olur.
+
+**Go** — `go.mod` ve `.go-version`:
+
+```text
+go 1.22               → >=1.22    (MİNİMUM gereksinim, sabitleme DEĞİL)
+toolchain go1.23.1    → 1.23.1    (tam araç zinciri; go 1.22 ile birlikte geçerli)
+```
+
+Bu yüzden `go 1.22` ile `toolchain go1.23.1` çelişmez: ilki "en az 1.22" der,
+ikincisi 1.23.1'i seçer. `.go-version` tek ve tam bir belirteç olarak okunur.
+Desteklenen: satır başına bir `go`/`toolchain` direktifi, her girintide,
+`toolchain` `go` ön ekiyle ya da öneksiz. Okunmayan: `toolchain default`,
+çok satırlı direktifler, ortamdaki `GOTOOLCHAIN` ve yorum/`replace` bloğu
+içine gizlenmiş sürümler.
+
+**Java** — `pom.xml` ve `.java-version`:
+
+```xml
+<properties>
+  <maven.compiler.release>21</maven.compiler.release>
+  <java.version>21</java.version>
+</properties>
+```
+
+`maven.compiler.release`, `maven.compiler.source`, `java.version`, `release`
+anahtarlarının her biri (bu sırayla) okunur, ama yalnız ilk tek satırlık
+birebir öğesi — üst öğe doğrulanmadığı için eklenti yapılandırmasındaki bir
+`<release>` de eşleşir. `${...}` değerleri dinamik sayılıp atlanır. Okunmayan: çok satırlı ya da ad
+alanı önekli öğeler; XML varlıkları çözülmez (böyle değerler çözümlenemedi
+olarak raporlanır). Maven profiline göre değişen değerler, `toolchains.xml` ve
+`.mvn/jvm.config` kapsam dışıdır. `.java-version` tek ve tam bir belirteçtir.
+
 ## Çelişki ne demek?
 
 Her sabitleme bir **sürüm kümesine** dönüşür; iki küme kesişmiyorsa çelişki
@@ -101,8 +146,11 @@ vardır:
 - `.nvmrc: 20` ile `FROM node:22` → **çelişki** (iki ayrı somut sürüm).
 - `3.12` ile `3.12.*` ile `3.12.1`: ön ek semantiği — `3.12`, `3.12.1`'i kapsar;
   ancak tam belirtilmiş sürüm NOKTADIR: `20.1.0`, `>20.1.0` ile kesişmez.
-- CI **matrisi** (`[20, 22]`) bir test ızgarasıdır: üyelerinin BİRLEŞİMİ olarak
-  karşılaştırılır; ızgaradaki herhangi bir değere eşit sabitleme çelişmez.
+- CI **matrisi** (`[20, 22]`), `mise.toml` listeleri
+  (`node = ["22", "24"]`) ve çok değerli `.tool-versions` satırları
+  (`python 3.12.1 3.11.8`) kurulu sürümlerin BİRLEŞİMİDİR; ayrı ve çelişen
+  sabitlemeler değildir. Herhangi bir üyeye eşit sabitleme çelişmez ve tek bir
+  üye "asıl" referans ilan edilmez.
 - Desteklenen sözdizimi: düz/ön ek (`20`, `20.x`), aralıklar (`>= > <= < ==`),
   `||` birleşimleri, virgülle VE listeleri (`>=3.10,<4.0`), semver `^`/`~`,
   PEP 440 `~=`.
@@ -201,7 +249,11 @@ zinciri sürprizi çıkarmamalıdır.
 
 ## Sınırlar (dürüst liste)
 
-- Komut satırı iletileri varsayılan olarak Türkçedir; `--lang en` veya `RUNTIME_PIN_SYNC_LANG=en` ile tam İngilizce desteklenir (tablo, çelişki özeti, sync ve hata/uyarı yolları dahil).
+- Komut satırı varsayılan olarak Türkçedir; `--lang en` veya
+  `RUNTIME_PIN_SYNC_LANG=en` insan tarafından okunan yüzeyi çevirir: durum
+  tablosu, çelişki özeti, sync değişiklik listesi ve TÜM elle-düzeltme
+  gerekçeleri, hata iletileri ve ayrıştırıcı uyarıları. JSON anahtarları
+  çevrilmez (kararlı API).
 - İş akışı dosyaları mini YAML alt kümesiyle okunur; alışıldık dışı YAML,
   yanlış rapor veya çökme yerine "okunamadı" uyarısı üretir.
 - Paket/bağımlılık sürümleri kapsam dışıdır (`renovate`/`syncpack` işi);

@@ -29,6 +29,7 @@ Python ≥ 3.10. **Zero runtime dependencies** (see
 ## 30-second example
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync .
 ÇALIŞMA ZAMANI  KAYNAK                    TÜR              SABİTLEME  DURUM
 --------------  ------------------------  ---------------  ---------  --------
@@ -49,13 +50,17 @@ $ echo $?
 1
 ```
 
-(Real output from `ornek-depolar/uyumsuz` in this repo. The CLI speaks Turkish
-by default and fully supports English via `--lang en` or `RUNTIME_PIN_SYNC_LANG=en`.
-English flag aliases: `--source`, `--variable`.)
+(Real output from `ornek-depolar/uyumsuz` in this repo, run from that directory;
+every command below is shown with the directory it runs in. The CLI speaks
+Turkish by default; the human-readable output — tables, conflict summaries,
+sync plans and reasons, errors and warnings — is available in English via
+`--lang en` or `RUNTIME_PIN_SYNC_LANG=en`. JSON field names stay stable
+(Turkish) in both modes. English flag aliases: `--source`, `--variable`.)
 
 Run in English:
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync . --lang en
 RUNTIME  SOURCE                    TYPE             PIN      STATUS
 -------  ------------------------  ---------------  -------  ----------
@@ -77,6 +82,7 @@ RESULT: 2 runtimes have conflicts.
 Fix it from a single source of truth (supports `--lang en` and Turkish):
 
 ```console
+$ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync sync --source .tool-versions --dry-run --lang en
 .python-version:1  '3.9' → '3.12.1' (to be changed)
 Dockerfile:2  '22' → '20.11.0' (to be changed)
@@ -96,6 +102,43 @@ clean
 | Rust | `rust-toolchain`, `rust-toolchain.toml`, Dockerfile `FROM rust:…`, `dtolnay/rust-toolchain` |
 | Java | `.java-version`, `pom.xml` (`maven.compiler.release` etc.), Dockerfile `FROM eclipse-temurin:…` etc., `actions/setup-java` + matrix |
 
+### Parser boundaries: Go and Java
+
+Both readers are deliberately line-oriented; knowing where they stop prevents
+false confidence.
+
+**Go** — `go.mod` and `.go-version`:
+
+```text
+go 1.22               → >=1.22    (a minimum requirement, NOT a pin)
+toolchain go1.23.1    → 1.23.1    (the exact toolchain; valid next to go 1.22)
+```
+
+`go 1.22` and `toolchain go1.23.1` therefore do not conflict: the first says
+"at least 1.22", the second selects 1.23.1. `.go-version` is read as one exact
+token. Supported: one `go`/`toolchain` directive per line, at any indentation,
+`toolchain` with or without the `go` prefix. Not read: `toolchain default`,
+multi-line directives, `GOTOOLCHAIN` from the environment, or versions hidden
+inside comments/`replace` blocks.
+
+**Java** — `pom.xml` and `.java-version`:
+
+```xml
+<properties>
+  <maven.compiler.release>21</maven.compiler.release>
+  <java.version>21</java.version>
+</properties>
+```
+
+Every key from `maven.compiler.release`, `maven.compiler.source`,
+`java.version`, `release` (in that order) is read, but only its FIRST
+single-line literal element — the parent element is not validated, so a
+`<release>` inside plugin configuration is matched too. `${...}` values are
+reported as dynamic and skipped. Not read: multi-line or namespace-prefixed
+elements; XML entities are not decoded (such values are reported as
+unparseable). Values that differ per Maven profile, `toolchains.xml` and
+`.mvn/jvm.config` are out of scope. `.java-version` is one exact token.
+
 ## Conflict semantics (the important part)
 
 Every pin becomes a **set of versions**; two pins conflict only when their
@@ -107,8 +150,10 @@ sets are disjoint:
 - `3.12` vs `3.12.*` vs `3.12.1` — prefix semantics: `3.12` covers `3.12.1`,
   but a fully specified version is a point: `20.1.0` does **not** intersect
   `>20.1.0` (it excludes itself from that range).
-- CI **matrix** (`[20, 22]`) is a test grid: it is compared as the *union* of
-  its entries, so a pin equal to any grid member never conflicts.
+- CI **matrix** (`[20, 22]`), `mise.toml` lists (`node = ["22", "24"]`) and
+  multi-value `.tool-versions` lines (`python 3.12.1 3.11.8`) are unions of
+  installed versions, not separate conflicting pins: a pin equal to any member
+  never conflicts, and no single member is promoted to "the" reference.
 - Supported spec syntax: plain/prefix (`20`, `20.x`), ranges (`>= > <= < ==`),
   `||` unions, comma/AND lists (`>=3.10,<4.0`), semver `^`/`~`, PEP 440 `~=`.
 - **Nothing dynamic is an error.** `${{ matrix.x }}`, unresolvable Dockerfile
@@ -209,7 +254,10 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 
 ## Limitations (honest list)
 
-- CLI output defaults to Turkish and fully supports English via `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`), covering status tables, conflict messages, sync outputs, error and warning paths.
+- CLI output defaults to Turkish; `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`)
+  translates the human-readable surface: status tables, conflict summaries,
+  sync change lists and *all* manual-edit reasons, error messages and parser
+  warnings. JSON keys are not translated (they are a stable API).
 - CI workflow files use our minimal YAML subset; exotic YAML raises an
   informative warning instead of a false report or crash.
 - Package/dependency versions are out of scope (that's `renovate` /
