@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
@@ -84,6 +85,13 @@ def _gerekce_cevir(gerekce: str, lang: str) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if sys.platform == "win32":
+        if hasattr(sys.stdout, "reconfigure"):
+            with contextlib.suppress(Exception):
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            with contextlib.suppress(Exception):
+                sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     girdi = list(sys.argv[1:] if argv is None else argv)
     komut = "check"
     if girdi and girdi[0] in ("sync", "check"):
