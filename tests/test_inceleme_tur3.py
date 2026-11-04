@@ -173,13 +173,17 @@ def test_mise_anahtarsız_bölümde_belirsizlik_conumu_yok():
 
 # --- 5. Çakışan satır otomatik plana geri dönemez (yaz.py) ---------------------
 
-def test_üçüncü_hedef_otomatik_plana_dönemez(tmp_path):
+def test_mise_listesi_tek_hedef_olarak_raporlanır(tmp_path):
+    # [3.9, 3.10, 3.11] artık ÜÇ ayrı pim değil, tek birleşim pimidir: aynı
+    # satıra üç hedef düşmez; satır tek bir "elle düzeltilmeli" kaydı olur.
     yaz(tmp_path, ".tool-versions", "python 3.12.1\n")
-    yaz(tmp_path, "mise.toml", '[tools]\npython = ["3.9", "3.10", "3.11"]\n')
+    yaz(tmp_path, "mise.toml", """[tools]
+python = ["3.9", "3.10", "3.11"]
+""")
     otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
-    assert otomatik == []  # ilk iki elle'ye gitti diye ÜÇÜNCÜ yazILMAZ
-    assert len(elle) == 3
-    assert all("aynı satırda birden fazla hedef" in d.gerekce for d in elle)
+    assert otomatik == []
+    (kayit,) = elle
+    assert kayit.satir == 2 and "ızgara" in kayit.gerekce
 
 
 # --- 6. Çok değerli kaynak: ilk üye otomatik yazılmaz (karsilastir.py) ---------

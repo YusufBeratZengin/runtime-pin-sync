@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .bulucular import araclar, go, java, node, python, rust
 from .ci import is_aksi
+from .dil import m
 from .docker import devcontainer, dockerfile
 from .sabitleme import Sabitleme
 
@@ -32,7 +33,12 @@ BİLİNEN_DOSYALAR = frozenset({
 })
 
 
-def tara(yol: str | Path, degiskenler: dict[str, str] | None = None) -> list[Sabitleme]:
+def tara(
+    yol: str | Path,
+    degiskenler: dict[str, str] | None = None,
+    *,
+    lang: str = "tr",
+) -> list[Sabitleme]:
     """Depo kökünü tara; bulunan tüm sabitlemeleri sıralı döndür.
 
     Atlanan dizinlere `os.walk` ile BUDANARAK girilmez (büyük `node_modules`
@@ -41,7 +47,7 @@ def tara(yol: str | Path, degiskenler: dict[str, str] | None = None) -> list[Sab
     """
     kok = Path(yol)
     if not kok.is_dir():
-        raise ValueError(f"depo klasörü değil: {yol}")
+        raise ValueError(m(lang, "not_a_repo", yol=yol))
     sonuc: dict[tuple[str, str, str, str], Sabitleme] = {}
     for yürütülen, dizinler, dosyalar in os.walk(kok):
         dizinler[:] = sorted(d for d in dizinler if d not in ATLANAN_DİZİNLER)
@@ -127,6 +133,13 @@ def _metin(yol: Path) -> str:
 
 
 def kaynak_kontrol(pimler: list[Sabitleme], kaynak: str) -> bool:
-    """--kaynak ile verilen yol depoda gerçekten bir sabitleme üretti mi?"""
+    """Kaynak dosya KULLANILABİLİR bir sürüm üretti mi?
+
+    Yalnız dosya yolunun bulunması yetmez: boş ya da okunamayan bir sürüm
+    dosyası da uyarılı bir Sabitleme üretir. Böyle bir dosya ``--kaynak``
+    seçilirse hiçbir çelişki görünmez ve ``sync`` yanlışlıkla başarı (0)
+    dönebilirdi. Bu yüzden en az bir ``kullanilabilir`` sabitleme aranır.
+    """
     norm = os.path.normpath(kaynak).replace(os.sep, "/")
-    return any(p.dosya == norm or p.dosya == kaynak for p in pimler)
+    return any((p.dosya == norm or p.dosya == kaynak) and p.kullanilabilir
+               for p in pimler)

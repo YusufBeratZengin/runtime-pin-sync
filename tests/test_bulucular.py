@@ -196,16 +196,31 @@ def test_tool_versions():
 
 
 def test_mise():
-    icerik = ('[tools]\nnode = "22.11.0"\npython = ["3.11", "${{ env.PY }}"]\n'
-              'golang = "latest"\ndeneme = "1.2.3"\n')
+    icerik = """[tools]
+node = "22.11.0"
+python = ["3.11", "${{ env.PY }}"]
+golang = "latest"
+deneme = "1.2.3"
+"""
     pimler = araclar.mise("mise.toml", icerik)
     assert any(p.ham == "22.11.0" and p.kullanilabilir for p in pimler)
-    assert sum(1 for p in pimler if p.calisma_zamani == "python"
-               and p.kullanilabilir) == 1  # yalnız "3.11" somut
-    assert any(p.ham == "3.11" and p.satir == 3 for p in pimler)
-    assert any(p.ham == "${{ env.PY }}" and p.dinamik for p in pimler)
+    # Liste tek pin olarak okunur; bir üyesi çözülemiyorsa listenin TAMAMI
+    # dinamiktir (yarısı bilinen küme karşılaştırmaya sokulmaz).
+    (python,) = [p for p in pimler if p.calisma_zamani == "python"]
+    assert python.dinamik and python.satir == 3
+    assert python.ham == "3.11, ${{ env.PY }}"
     assert any(p.ham == "latest" and p.dinamik for p in pimler)
     assert all(p.calisma_zamani != "deneme" for p in pimler)  # bilinmeyen araç yok
+
+
+def test_mise_listesi_birleşim_tek_pin():
+    # mise listesi ayrı sabitlemelere AÇILMAZ: [22, 24] tek ızgara pimidir.
+    (p,) = araclar.mise("mise.toml", """[tools]
+node = ["22", "24"]
+""")
+    assert p.ham == "22, 24"
+    assert p.kullanilabilir and not p.aralik.sabit
+    assert p.satir == 2
 
 
 def test_mise_bozuk_ve_araçsız():

@@ -109,3 +109,19 @@ def test_kaynak_kontrol():
     pimler = tara(PROJE_KOK / "ornek-depolar/uyumsuz")
     assert kaynak_kontrol(pimler, ".tool-versions")
     assert not kaynak_kontrol(pimler, "olmayan")
+
+
+def test_kaynak_kontrol_boş_ya_da_çözülemeyen_dosyayı_reddeder(tmp_path):
+    # Dosya YOLU bulunmak yetmez; kaynak KULLANILABİLİR bir sürüm üretmeli.
+    # Boş .nvmrc uyarılı bir Sabitleme üretir — kaynak sayılmamalı.
+    from runtime_pin_sync.tara import kaynak_kontrol
+
+    yaz(tmp_path, ".nvmrc", "")
+    pimler = tara(tmp_path)
+    assert pimler and pimler[0].uyari and not pimler[0].kullanilabilir
+    assert not kaynak_kontrol(pimler, ".nvmrc")
+
+    yaz(tmp_path, ".python-version", "sürüm-yok")
+    pimler = tara(tmp_path)
+    assert not any(p.kullanilabilir for p in pimler if p.dosya == ".python-version")
+    assert not kaynak_kontrol(pimler, ".python-version")

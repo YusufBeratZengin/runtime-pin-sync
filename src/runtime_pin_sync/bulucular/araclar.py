@@ -10,7 +10,7 @@ import re
 
 from .. import minitoml
 from ..sabitleme import Sabitleme
-from . import grid_pin, pin, satirlar
+from . import DINAMIK_İŞARET, grid_pin, pin, satirlar
 
 __all__ = ["tool_versions", "mise", "TAKMA_ADLAR"]
 
@@ -37,16 +37,10 @@ def tool_versions(dosya: str, icerik: str) -> list[Sabitleme]:
         cz = TAKMA_ADLAR.get(ad.lower())
         if cz is None:
             continue
-        if any(d.lower() in _BILINMEYEN_DEGERLER for d in degerler):
-            sonuc.append(Sabitleme(cz, dosya, "tool-versions",
-                                   " ".join(degerler), dinamik=True, satir=i))
-        elif len(degerler) == 1:
-            sonuc.append(pin(cz, dosya, "tool-versions", degerler[0], satir=i))
-        else:
-            # asdf çoklu kurulum: "python 3.12.1 3.11.8" İKİSİNİ birden
-            # kurar → BİRLİŞİM (ızgara) olarak modellenir; ilk değere
-            # indirgenmez, hiçbir üyeyle tek başına çelişki sayılmaz.
-            sonuc.append(grid_pin(cz, dosya, "tool-versions", degerler))
+        # asdf çoklu kurulum: "python 3.12.1 3.11.8" İKİSİNİ birden kurar →
+        # BİRLEŞİM (ızgara) olarak modellenir; ilk değere indirgenmez,
+        # hiçbir üyeyle tek başına çelişki sayılmaz.
+        sonuc.append(_deger_pimi(cz, dosya, "tool-versions", degerler, i))
     return sonuc
 
 
@@ -65,21 +59,39 @@ def mise(dosya: str, icerik: str) -> list[Sabitleme]:
         if cz is None:
             continue
         degerler = deger if isinstance(deger, list) else [deger]
+        metinler = []
         for d in degerler:
             if not isinstance(d, str):
                 d = str(d)
             metin = d.strip()
-            if not metin:
-                continue
-            if "${{" in metin:
-                sonuc.append(Sabitleme(cz, dosya, "mise", metin, dinamik=True))
-            elif metin.lower() in _BILINMEYEN_DEGERLER:
-                sonuc.append(Sabitleme(cz, dosya, "mise", metin, dinamik=True,
-                                       satir=_tools_satırı(satirlar(icerik), str(ad))))
-            else:
-                sonuc.append(pin(cz, dosya, "mise", metin,
-                                 satir=_tools_satırı(satirlar(icerik), str(ad))))
+            if metin:
+                metinler.append(metin)
+        if not metinler:
+            continue
+        # `node = ["22", "24"]` de BİR pimdir: varsayılan denetimde de kaynak
+        # kipinde de aynı birleşim kümesi karşılaştırılır; üyelerden biri
+        # referans diye seçilmez.
+        sonuc.append(_deger_pimi(cz, dosya, "mise", metinler,
+                                 _tools_satırı(satirlar(icerik), str(ad))))
     return sonuc
+
+
+def _deger_pimi(cz: str, dosya: str, tur: str, degerler: list[str],
+                satir: int | None) -> Sabitleme:
+    """Çok değerli sürüm listesini TEK sabitlemeye indirger.
+
+    - Bir üye bile dinamik/çözülemeyen takma adsa listenin TAMAMI dinamiktir
+      (yarısı bilinen küme karşılaştırmaya sokulmaz).
+    - Tek üye normal sabit pimdir.
+    - Çok üye BİRLEŞİM (ızgara) pimidir; hiçbir üye tek başına referans olmaz.
+    """
+    if any(DINAMIK_İŞARET in d or d.lower() in _BILINMEYEN_DEGERLER
+           for d in degerler):
+        return Sabitleme(cz, dosya, tur, ", ".join(degerler),
+                         dinamik=True, satir=satir)
+    if len(degerler) == 1:
+        return pin(cz, dosya, tur, degerler[0], satir=satir)
+    return grid_pin(cz, dosya, tur, degerler, satir=satir)
 
 
 _BÖLÜM_RE = re.compile(r"^\s*\[\[?([^\]]+)\]?\]")

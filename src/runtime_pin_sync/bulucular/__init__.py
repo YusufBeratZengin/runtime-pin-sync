@@ -10,7 +10,7 @@ from __future__ import annotations
 from ..sabitleme import Sabitleme
 from ..versiyon import spek_ayristir
 
-__all__ = ["pin", "satirlar", "satir_bul", "DINAMIK_İŞARET"]
+__all__ = ["pin", "grid_pin", "satirlar", "satir_bul", "DINAMIK_İŞARET"]
 
 DINAMIK_İŞARET = "${{"
 
@@ -49,12 +49,14 @@ def grid_pin(
     dosya: str,
     tur: str,
     degerler: list[str],
-    uyari: str | None = None,
+    satir: int | None = None,
 ) -> Sabitleme:
-    """Test ızgarası (CI matrisi gibi): öğelerin BİRLEŞİMİ tek sabitleme olur.
+    """Test ızgarası (CI matrisi ya da liste): öğelerin BİRLEŞİMİ tek sabitleme olur.
 
     Izgara 20 VE 22'yi test ediyorsa 20 tek başına çelişki değildir; yalnızca
-    ızgaranın hiçbiriyle kesişmeyen sabitleme çelişir.
+    ızgaranın hiçbiriyle kesişmeyen sabitleme çelişir. ``satir`` yalnız raporda
+    ve "elle düzeltilmeli" kaydında gösterilir; ızgara hiçbir zaman otomatik
+    yazılmaz (``sabit_belirtec_mi`` birleşimi reddeder).
     """
     from ..versiyon import Aralik, AralikKumesi
 
@@ -67,9 +69,9 @@ def grid_pin(
         parcalar.extend(a.parcalar)
     if not parcalar:
         return Sabitleme(calisma_zamani, dosya, tur, ham,
-                         dinamik=True, satir=None)
+                         dinamik=True, satir=satir)
     return Sabitleme(calisma_zamani, dosya, tur, ham,
-                     aralik=AralikKumesi(tuple(parcalar)), satir=None)
+                     aralik=AralikKumesi(tuple(parcalar)), satir=satir)
 
 
 def satirlar(metin: str) -> list[str]:

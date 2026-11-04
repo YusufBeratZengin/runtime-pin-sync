@@ -64,17 +64,41 @@ def test_şablonlu_dockerfile_elle_gider(tmp_path):
     assert elle[0].dosya == "Dockerfile"
 
 
-def test_aynı_satıra_iki_hedef_elle_gider(tmp_path):
-    # mise listesindeki iki python sürümü AYNI satırda: ikisi de dışlanırsa
-    # tek satıra iki hedef düşer → güvenli değil, elle listelenir
-    yaz(tmp_path, ".tool-versions", "python 3.12.1\n")
-    yaz(tmp_path, "mise.toml", '[tools]\npython = ["3.9", "3.10"]\n')
+def test_aynı_satıra_iki_hedef_elle_gider(tmp_path, monkeypatch):
+    # Savunma kuralı: iki ayrı sabitleme aynı satırı hedefliyorsa hiçbiri
+    # otomatik yazılmaz (hangi değerin kalacağı belirsiz).
+    from runtime_pin_sync import yaz as yaz_modul
+    from runtime_pin_sync.bulucular import pin
+    from runtime_pin_sync.sabitleme import Celiski
+
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    # iki farklı belirteç AYNI satırda dursun ki ikisi de yazılabilir görünsün
+    yaz(tmp_path, "surumler.txt", "22 24\n")
+    p1 = pin("node", "surumler.txt", "tool-versions", "22", satir=1)
+    p2 = pin("node", "surumler.txt", "tool-versions", "24", satir=1)
+    monkeypatch.setattr(
+        yaz_modul, "celiski",
+        lambda *a, **k: [Celiski("node", "surumler.txt", "20.11.0", [p1, p2])])
     otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
     assert otomatik == []
     assert len(elle) == 2
     assert all("aynı satırda birden fazla hedef" in d.gerekce for d in elle)
-    assert (tmp_path / "mise.toml").read_text(encoding="utf-8") == \
-        '[tools]\npython = ["3.9", "3.10"]\n'
+
+
+def test_mise_listesi_tek_elle_kaydı_üretir(tmp_path):
+    # Liste birleşim olarak TEK pimdir: iki üye için iki ayrı hedef uydurulmaz.
+    yaz(tmp_path, ".tool-versions", "python 3.12.1\n")
+    yaz(tmp_path, "mise.toml", """[tools]
+python = ["3.9", "3.10"]
+""")
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
+    assert otomatik == []
+    (kayit,) = elle
+    assert kayit.dosya == "mise.toml" and kayit.satir == 2
+    assert "ızgara" in kayit.gerekce
+    assert (tmp_path / "mise.toml").read_text(encoding="utf-8") == """[tools]
+python = ["3.9", "3.10"]
+"""
 
 
 def test_uygulanamayan_değişiklik_elle_düşer(tmp_path, monkeypatch):
@@ -82,7 +106,7 @@ def test_uygulanamayan_değişiklik_elle_düşer(tmp_path, monkeypatch):
     yaz(tmp_path, ".nvmrc", "22\n")
     from runtime_pin_sync import yaz as yaz_modul
 
-    def patlayan(_kok, _d, _dosya):
+    def patlayan(*_args, **_kwargs):
         raise OSError("sahte disk hatası")
 
     monkeypatch.setattr(yaz_modul, "_uygula", patlayan)
@@ -307,3 +331,18 @@ def test_crlf_karışık_satır_sonları_korunur(tmp_path):
     assert (tmp_path / ".nvmrc").read_bytes() == b"20.11.0\r\n"
     assert (tmp_path / "Dockerfile").read_bytes() == (
         b"FROM node:20.11.0 AS a\r\nWORKDIR /app\nRUN x\r\n")
+
+
+def test_boş_ya_da_dinamik_kaynak_senkronla_da_hata(tmp_path):
+    # Kütüphane yolu da CLI ile aynı sözleşmeyi uygular: kullanılabilir sürüm
+    # üretmeyen kaynak "temiz" sayılmaz.
+    import pytest
+
+    yaz(tmp_path, ".nvmrc", "")
+    yaz(tmp_path, "Dockerfile", "FROM node:22\n")
+    with pytest.raises(ValueError, match="sürüm üretmiyor"):
+        senkronla(tmp_path, ".nvmrc", True)
+
+    yaz(tmp_path, ".tool-versions", "node latest\n")
+    with pytest.raises(ValueError, match="sürüm üretmiyor"):
+        senkronla(tmp_path, ".tool-versions", True)

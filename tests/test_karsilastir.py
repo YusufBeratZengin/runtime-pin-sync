@@ -124,3 +124,36 @@ def test_uyumlu_görünen_hub_aralık_çelişkiyi_gizlemez():
     assert len(celiskiler) == 1
     (c,) = celiskiler
     assert {p.dosya for p in c.dislananlar} | {c.referans_dosya} == {"b", "c"}
+
+
+# --- regresyon: mise listesi varsayılan denetimde de BİRLEŞİMDİR --------------
+
+def test_mise_listesi_varsayılan_denetimde_çelişki_üretmez(tmp_path):
+    from conftest import yaz
+    yaz(tmp_path, "mise.toml", """[tools]
+node = ["22", "24"]
+""")
+    yaz(tmp_path, ".nvmrc", "24\n")
+    assert celiski(tara(tmp_path)) == []          # 24 listenin üyesi
+    yaz(tmp_path, ".nvmrc", "20\n")
+    (c,) = celiski(tara(tmp_path))                # 20 hiçbir üyeyle kesişmez
+    assert c.referans_dosya == "mise.toml"
+    assert c.referans_ham == "22, 24"
+    assert [p.dosya for p in c.dislananlar] == [".nvmrc"]
+
+
+def test_çok_pimli_kaynak_birleşim_referansı_olur(tmp_path):
+    # Aynı kaynak dosya aynı çalışma zamanı için İKİ pim üretirse (iki CI
+    # adımı) referans ilk adım değil, ikisinin BİRLEŞİMİDİR; .nvmrc 18 dışlanır.
+    from conftest import yaz
+    yaz(tmp_path, ".github/workflows/ci.yml",
+        "jobs:\n  t:\n    steps:\n"
+        "      - uses: actions/setup-node@v4\n"
+        "        with:\n          node-version: 20\n"
+        "      - uses: actions/setup-node@v4\n"
+        "        with:\n          node-version: 22\n")
+    yaz(tmp_path, ".nvmrc", "18\n")
+    (c,) = celiski(tara(tmp_path), kaynak=".github/workflows/ci.yml")
+    assert c.referans_dosya == ".github/workflows/ci.yml"
+    assert c.referans_ham == "20, 22"
+    assert [p.dosya for p in c.dislananlar] == [".nvmrc"]
