@@ -17,6 +17,7 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
+from .dil import m
 from .karsilastir import celiski
 from .rapor import json_sözlüğü, tablo
 from .tara import kaynak_kontrol, tara
@@ -66,24 +67,6 @@ def _degisken_çöz(girdiler: list[str], lang: str = "tr") -> dict[str, str]:
     return sonuc
 
 
-def _gerekce_cevir(gerekce: str, lang: str) -> str:
-    if lang != "en":
-        return gerekce
-    if "aynı satırda birden fazla hedef" in gerekce:
-        return "multiple targets on the same line"
-    if "senkron sonrası çelişki giderilmedi" in gerekce:
-        return "conflict remains unresolved after sync"
-    if "sabit sürüm değil" in gerekce:
-        return (
-            gerekce.replace("referans", "reference")
-            .replace("sabit sürüm değil (aralık/ızgara); yazılmaz",
-                     "is not a pinned version (range/matrix); will not rewrite")
-        )
-    if "uygulanamadı:" in gerekce:
-        return gerekce.replace("uygulanamadı:", "failed to apply:")
-    return gerekce
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     if sys.platform == "win32":
         if hasattr(sys.stdout, "reconfigure"):
@@ -110,17 +93,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     norm_kaynak = norm_yol(args.kaynak) if args.kaynak else None
     try:
-        pimler = tara(args.yol, degiskenler)
+        pimler = tara(args.yol, degiskenler, lang=lang)
     except (ValueError, OSError) as exc:
         print(f"{err_prefix}: {exc}", file=sys.stderr)
         return 2
 
     if norm_kaynak is not None and not kaynak_kontrol(pimler, norm_kaynak):
-        msg = (
-            f"source not found or yields no versions: {args.kaynak}"
-            if lang == "en"
-            else f"kaynak bulunamadı ya da sürüm üretmiyor: {args.kaynak}"
-        )
+        msg = m(lang, "source_unusable", kaynak=args.kaynak)
         print(f"{err_prefix}: {msg}", file=sys.stderr)
         return 2
 
@@ -148,7 +127,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _sync(args: argparse.Namespace, degiskenler: dict[str, str], lang: str = "tr") -> int:
     err_prefix = "error" if lang == "en" else "hata"
     try:
-        otomatik, elle = senkronla(args.yol, args.kaynak, args.dry_run, degiskenler)
+        otomatik, elle = senkronla(args.yol, args.kaynak, args.dry_run,
+                                  degiskenler, lang=lang)
     except (ValueError, OSError) as exc:
         print(f"{err_prefix}: {exc}", file=sys.stderr)
         return 2
@@ -175,8 +155,7 @@ def _sync(args: argparse.Namespace, degiskenler: dict[str, str], lang: str = "tr
             baslik = "\nMUST BE FIXED MANUALLY:" if lang == "en" else "\nELLE DÜZELTİLMELİ:"
             print(baslik)
             for d in elle:
-                gerekce = _gerekce_cevir(d.gerekce, lang)
-                print(f"  {d.dosya}:{d.satir}  ({d.eski!r} → {d.yeni!r}) {gerekce}")
+                print(f"  {d.dosya}:{d.satir}  ({d.eski!r} → {d.yeni!r}) {d.gerekce}")
         if not otomatik and not elle:
             bos_msg = (
                 "nothing to sync - all pins already match the source."

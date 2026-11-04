@@ -208,3 +208,47 @@ def test_temiz_ortamda_pytest_src_bulur():
     res = subprocess.run(cmd, capture_output=True, text=True, env=env)
     assert res.returncode == 0, f"pytest başarısız: {res.stderr}\n{res.stdout}"
 
+
+def test_boş_kaynak_kullanılabilir_sürüm_istiyor(tmp_path, capsys):
+    depo = tmp_path / "depo_bos_kaynak"
+    yaz(depo, ".nvmrc", "")
+    yaz(depo, "Dockerfile", "FROM node:22\n")
+
+    assert main([str(depo), "--kaynak", ".nvmrc"]) == 2
+    assert "sürüm üretmiyor" in capsys.readouterr().err
+
+    assert main(["sync", str(depo), "--kaynak", ".nvmrc"]) == 2
+    assert capsys.readouterr().err  # sync de aynı hatayla durur
+
+    assert main([str(depo), "--kaynak", ".nvmrc", "--lang", "en"]) == 2
+    assert "yields no versions" in capsys.readouterr().err
+
+
+def test_cli_ingilizce_sync_gerekceleri_tamamen_ingilizce(tmp_path, capsys):
+    depo = tmp_path / "depo_en_gerekce"
+    yaz(depo, ".tool-versions", "node 20.11.0\n")
+    yaz(depo, "Dockerfile", "ARG TAG=22-slim\nFROM node:${TAG}\n")
+    yaz(depo, "package.json", '{"engines": {"node": ">=22"}}\n')
+    assert main(["sync", str(depo), "--source", ".tool-versions",
+                 "--dry-run", "--lang", "en"]) == 1
+    out = capsys.readouterr().out
+    assert "standalone" in out                  # şablonlu FROM gerekçesi
+    assert "is a range/matrix" in out          # aralık hedef gerekçesi
+    for tr in ("satırda", "dosya okunamadı", "aralık/ızgara", "uygulanamadı",
+               "sabit sürüm"):
+        assert tr not in out, f"İngilizce çıktıda Türkçe gerekçe: {tr}"
+
+
+def test_cli_ingilizce_uyarilar_tamamen_ingilizce(tmp_path, capsys):
+    depo = tmp_path / "depo_en_uyari"
+    yaz(depo, ".nvmrc", "")
+    yaz(depo, ".python-version", "surum-yok")
+    yaz(depo, "Dockerfile", "FROM node:22-sucuk\n")
+    yaz(depo, ".github/workflows/ci.yml", "jobs:\n\tbuild: x\n")
+    assert main([str(depo), "--lang", "en"]) == 0
+    out = capsys.readouterr().out
+    assert "could not read" in out
+    assert "unsupported YAML" in out
+    for tr in ("okunamadı", "boş dosya", "çözümlenemedi", "desteklenmeyen",
+               "sekme", "sonek"):
+        assert tr not in out, f"İngilizce çıktıda Türkçe uyarı: {tr}"
