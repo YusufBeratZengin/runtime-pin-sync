@@ -29,7 +29,7 @@ $ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync .
 ÇALIŞMA ZAMANI  KAYNAK                    TÜR              SABİTLEME  DURUM
 --------------  ------------------------  ---------------  ---------  --------
-node            .github/workflows/ci.yml  ci-adim          20         referans
+node            .github/workflows/ci.yml  ci-adım          20         referans
 node            .nvmrc                    nvmrc            20         uyumlu
 node            .tool-versions            tool-versions    20.11.0    uyumlu
 node            Dockerfile                dockerfile       22         ÇELİŞKİ
@@ -61,7 +61,7 @@ $ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync . --lang en
 RUNTIME  SOURCE                    TYPE             PIN      STATUS
 -------  ------------------------  ---------------  -------  ----------
-node     .github/workflows/ci.yml  ci-adim          20       reference
+node     .github/workflows/ci.yml  ci-step          20       reference
 node     .nvmrc                    nvmrc            20       consistent
 node     .tool-versions            tool-versions    20.11.0  consistent
 node     Dockerfile                dockerfile       22       CONFLICT
@@ -97,7 +97,7 @@ temiz
 | Python | `.python-version`, `pyproject.toml` → `requires-python`, `.tool-versions`, `mise.toml`, Dockerfile `FROM python:…`, devcontainer, `actions/setup-python` + matris |
 | Go | `go.mod` (`go`, `toolchain`), `.go-version`, Dockerfile `FROM golang:…`, `actions/setup-go` + matris |
 | Rust | `rust-toolchain`, `rust-toolchain.toml`, Dockerfile `FROM rust:…`, `dtolnay/rust-toolchain` |
-| Java | `.java-version`, `pom.xml` (`maven.compiler.release` vb.), Dockerfile `FROM eclipse-temurin:…` vb., `actions/setup-java` + matris |
+| Java | `.java-version`, `.sdkmanrc` (`java=…`), `pom.xml` (`maven.compiler.release` vb.), Dockerfile `FROM eclipse-temurin:…` vb., `actions/setup-java` + matris |
 
 ### Ayrıştırıcı sınırları: Go ve Java
 
@@ -134,6 +134,12 @@ birebir öğesi — üst öğe doğrulanmadığı için eklenti yapılandırmas�
 alanı önekli öğeler; XML varlıkları çözülmez (böyle değerler çözümlenemedi
 olarak raporlanır). Maven profiline göre değişen değerler, `toolchains.xml` ve
 `.mvn/jvm.config` kapsam dışıdır. `.java-version` tek ve tam bir belirteçtir.
+
+`.sdkmanrc` (SDKMAN!) `anahtar=değer` satırları olarak okunur; yalnız `java`
+anahtarı Java kaynağıdır, diğer araçlar (`maven`, `gradle`) yok sayılır.
+`java=17.0.2+8` yapı bilgisini korur; dağıtım eki (`java=21.0.1-tem`) sürümün
+parçası değildir ve `sync` satırı yeniden yazarken korunur. `latest` ya da
+tanınmayan bir değer dinamik, boş değer okunamadı olarak raporlanır.
 
 ## Çelişki ne demek?
 
@@ -217,8 +223,11 @@ for c in celiski(pimler):   # list[Celiski]
 - JSON/JSONC: stdlib `json` + `devcontainer.json` için yorum/son-virgül
   tolere eden ince bir katman.
 
-Her CI işinde çalışacak bir geliştirme aracı bir saniyede kurulmalı ve tedarik
-zinciri sürprizi çıkarmamalıdır.
+Her CI işinde çalışacak bir geliştirme aracı bir saniyede kurulmalı ve
+*çalışma zamanına* üçüncü taraf kod sokmamalıdır: `pip install runtime-pin-sync`
+hiçbir paket çekmez. (Paketleme `hatchling` kullanır; test, lint ve tip
+kontrolü `[dev]` ekstrasındaki araçları ister — bunların hiçbiri kullanıcının
+çalışma zamanına girmez.)
 
 ### Desteklenen YAML alt kümesi ve PyYAML / ruamel.yaml ile farkı
 
@@ -244,7 +253,11 @@ zinciri sürprizi çıkarmamalıdır.
 
 - **Neden PyYAML veya ruamel.yaml değil?**:
   - *C-derleme / sistem bağımlılığı yok:* Linux, macOS ve Windows'ta Python 3.10+ kurulu her makinede derleyicisiz çalışır.
-  - *Tedarik zinciri riski sıfır:* Harici paket güncellemesi ve güvenlik açığı taşımaz.
+  - *Çalışma zamanında üçüncü taraf YAML ayrıştırıcısı yok:* PyYAML/ruamel.yaml
+    kullanıcının bağımlılık grafiğinden çıkar; onların güvenlik duyuruları ve
+    sürüm koşuşturması size ulaşmaz. Bu, "projenin hiç bağımlılığı yok"
+    iddiası **değildir**: derleme `hatchling`, test/lint ise `[dev]` ekstrası
+    ister.
   - *Kontrollü hata sınırları:* Ayrıştırma hataları yakalanıp yerelleştirilmiş uyarılara dönüştürülür.
 
 ## Sınırlar (dürüst liste)
@@ -253,7 +266,12 @@ zinciri sürprizi çıkarmamalıdır.
   `RUNTIME_PIN_SYNC_LANG=en` insan tarafından okunan yüzeyi çevirir: durum
   tablosu, çelişki özeti, sync değişiklik listesi ve TÜM elle-düzeltme
   gerekçeleri, hata iletileri ve ayrıştırıcı uyarıları. JSON anahtarları
-  çevrilmez (kararlı API).
+  çevrilmez (kararlı API). Tablodaki `TÜR` sütunu çevrilen bir etikettir
+  (`ci-adim` → `ci-adım`); JSON'daki `tur` alanı her zaman kararlı kimliği
+  taşır.
+- Okunamayan bir dizin sessizce atlanmaz: tarama, kısmi sonucu "temiz" diye
+  sunmak yerine çıkış kodu 2 ile durur
+  (`tarama eksik — okunamayan dizin(ler): …`).
 - İş akışı dosyaları mini YAML alt kümesiyle okunur; alışıldık dışı YAML,
   yanlış rapor veya çökme yerine "okunamadı" uyarısı üretir.
 - Paket/bağımlılık sürümleri kapsam dışıdır (`renovate`/`syncpack` işi);

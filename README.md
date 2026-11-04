@@ -33,7 +33,7 @@ $ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync .
 ÇALIŞMA ZAMANI  KAYNAK                    TÜR              SABİTLEME  DURUM
 --------------  ------------------------  ---------------  ---------  --------
-node            .github/workflows/ci.yml  ci-adim          20         referans
+node            .github/workflows/ci.yml  ci-adım          20         referans
 node            .nvmrc                    nvmrc            20         uyumlu
 node            .tool-versions            tool-versions    20.11.0    uyumlu
 node            Dockerfile                dockerfile       22         ÇELİŞKİ
@@ -64,7 +64,7 @@ $ cd ornek-depolar/uyumsuz
 $ runtime-pin-sync . --lang en
 RUNTIME  SOURCE                    TYPE             PIN      STATUS
 -------  ------------------------  ---------------  -------  ----------
-node     .github/workflows/ci.yml  ci-adim          20       reference
+node     .github/workflows/ci.yml  ci-step          20       reference
 node     .nvmrc                    nvmrc            20       consistent
 node     .tool-versions            tool-versions    20.11.0  consistent
 node     Dockerfile                dockerfile       22       CONFLICT
@@ -100,7 +100,7 @@ clean
 | Python | `.python-version`, `pyproject.toml` → `requires-python`, `.tool-versions`, `mise.toml`, Dockerfile `FROM python:…`, devcontainer, `actions/setup-python` + matrix |
 | Go | `go.mod` (`go`, `toolchain`), `.go-version`, Dockerfile `FROM golang:…`, `actions/setup-go` + matrix |
 | Rust | `rust-toolchain`, `rust-toolchain.toml`, Dockerfile `FROM rust:…`, `dtolnay/rust-toolchain` |
-| Java | `.java-version`, `pom.xml` (`maven.compiler.release` etc.), Dockerfile `FROM eclipse-temurin:…` etc., `actions/setup-java` + matrix |
+| Java | `.java-version`, `.sdkmanrc` (`java=…`), `pom.xml` (`maven.compiler.release` etc.), Dockerfile `FROM eclipse-temurin:…` etc., `actions/setup-java` + matrix |
 
 ### Parser boundaries: Go and Java
 
@@ -138,6 +138,12 @@ reported as dynamic and skipped. Not read: multi-line or namespace-prefixed
 elements; XML entities are not decoded (such values are reported as
 unparseable). Values that differ per Maven profile, `toolchains.xml` and
 `.mvn/jvm.config` are out of scope. `.java-version` is one exact token.
+
+`.sdkmanrc` (SDKMAN!) is read as `key=value` lines; only the `java` key is a
+Java source, other tools (`maven`, `gradle`) are ignored. `java=17.0.2+8`
+keeps its build metadata; a distribution suffix (`java=21.0.1-tem`) is not
+part of the version and is preserved when `sync` rewrites the line. `latest` or
+any unrecognised value is reported as dynamic, an empty value as unreadable.
 
 ## Conflict semantics (the important part)
 
@@ -222,8 +228,10 @@ for c in celiski(pins):   # list[Celiski]
 - JSON/JSONC: stdlib `json` plus a comment/trailing-comma tolerant wrapper
   for `devcontainer.json`.
 
-A dev tool that runs in every CI job should install in one second and never
-supply-chain-surprise you.
+A dev tool that runs in every CI job should install in one second and keep
+its *runtime* free of third-party code: `pip install runtime-pin-sync` pulls no
+packages. (Packaging uses `hatchling`; tests, lint and typing use the `[dev]`
+extra — none of that reaches a user's runtime.)
 
 ### Supported YAML subset and comparison with PyYAML / ruamel.yaml
 
@@ -249,7 +257,10 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 
 - **Why not PyYAML or ruamel.yaml?**:
   - *No compilation / C-extension requirements:* Works immediately across Linux, macOS, and Windows on any Python 3.10+ installation.
-  - *Zero supply-chain risk:* Eliminates third-party package vulnerabilities and dependency updates in developer environments.
+  - *No third-party YAML parser at runtime:* PyYAML/ruamel.yaml leave every
+    user's dependency graph, so their advisories and upgrade churn do not
+    reach you. This is **not** a claim that the project has no dependencies at
+    all: building needs `hatchling`, and tests/lint need the `[dev]` extra.
   - *Predictable error boundaries:* Workflow parsing errors degrade gracefully into localized warnings instead of throwing unhandled exceptions.
 
 ## Limitations (honest list)
@@ -257,7 +268,12 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 - CLI output defaults to Turkish; `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`)
   translates the human-readable surface: status tables, conflict summaries,
   sync change lists and *all* manual-edit reasons, error messages and parser
-  warnings. JSON keys are not translated (they are a stable API).
+  warnings. JSON keys are not translated (they are a stable API). The table's
+  `TYPE` column is a translated label (`ci-adim` → `ci-step`, `dosya` →
+  `file`); the JSON `tur` field always keeps the stable id.
+- A directory that cannot be read is never skipped silently: the scan stops
+  with exit code 2 (`scan incomplete — unreadable director(y/ies): …`) instead
+  of presenting a partial scan as a clean result.
 - CI workflow files use our minimal YAML subset; exotic YAML raises an
   informative warning instead of a false report or crash.
 - Package/dependency versions are out of scope (that's `renovate` /

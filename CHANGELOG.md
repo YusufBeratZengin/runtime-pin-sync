@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- `.sdkmanrc` (SDKMAN!) finder: the `java=` line is read as a Java source.
+  `java=17.0.2+8` keeps its build metadata, a distribution suffix
+  (`java=21.0.1-tem`) is not part of the version and survives a `sync`
+  rewrite; `latest`/unknown values are dynamic, empty values unreadable.
 - `--lang {tr,en}` CLI option and `RUNTIME_PIN_SYNC_LANG` environment variable support for full English output across tables, conflict reports, sync operations, and error/warning paths.
 - Documented supported YAML subset in `miniyaml.py` with behavioral examples and explicit architectural comparison with PyYAML / ruamel.yaml in README (EN and TR).
 - CI `paket` job builds sdist + wheel (`python -m build`) and installs **only the
@@ -19,6 +23,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 - Fixed clean-clone pytest collection failures (`ModuleNotFoundError: No module named 'runtime_pin_sync'`) by adding `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` and defining `export PYTHONPATH="src"` in `scripts/check.sh`.
 - Pinned developmental dependency version bounds in `pyproject.toml` (`[project.optional-dependencies] dev`) for reproducible test and CI execution.
+- Directory read errors during a scan are no longer swallowed by `os.walk`:
+  the unreadable path is named in a warning and `check`/`sync` exit with code
+  2 (`scan incomplete`) instead of presenting a partial scan as a clean pass.
+- The English `TYPE` column no longer leaks Turkish-only internal ids
+  (`ci-adim` -> `ci-step`, `ci-matrix`, `ci-file`, `ci-action`, `file`,
+  `directory`); JSON `tur` keeps the stable id.
+- README (EN/TR): the "zero supply-chain risk" claim was narrowed to what the
+  code actually guarantees — no third-party YAML parser on the *runtime*
+  dependency path. Building uses `hatchling` and tests/lint use the `[dev]`
+  extra, as the README now says explicitly.
 
 ### Fixed (independent review round 2)
 - Conflict engine now reports pairwise contradictions (union-find components);
@@ -132,7 +146,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   no parent validation, no profiles) readers.
 
 ### Planned
-- `--sdkmanrc` and Ruby `.ruby-version` finders
+- Ruby `.ruby-version` finder
 - GitHub Action wrapper (`action.yml`) + pre-commit hook id
 - EOL (end-of-life) warnings fed by an explicit data source
 - Monorepo per-package expectation file (`.pins.toml`)
