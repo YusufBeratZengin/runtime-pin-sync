@@ -49,3 +49,40 @@ jobs:
           if [ "$rc" -ne 1 ]; then
             echo "BEKLENEN çıkış kodu 1, ALINAN $rc"; exit 1
           fi
+
+  paket:
+    name: wheel · temiz kurulum (sıfır bağımlılık)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Wheel ve sdist üret
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --outdir dist
+      - name: Yalnız wheel'i temiz sanal ortama kur
+        shell: bash
+        # --no-index + --find-links: PyPI'ya hiç bakılmaz; kurulumun yalnız
+        # wheel'den ve sıfır çalışma zamanı bağımlılığıyla yapılabildiğini kanıtlar.
+        run: |
+          python -m venv "$RUNNER_TEMP/temiz"
+          PY="$RUNNER_TEMP/temiz/bin/python"
+          BIN="$RUNNER_TEMP/temiz/bin/runtime-pin-sync"
+          "$PY" -m pip install --no-index --find-links dist runtime-pin-sync
+          "$PY" -m pip check
+          "$BIN" --version
+          "$BIN" ornek-depolar/tutarli
+          set +e
+          "$BIN" ornek-depolar/uyumsuz
+          rc=$?
+          set -e
+          if [ "$rc" -ne 1 ]; then
+            echo "KURULU WHEEL: BEKLENEN çıkış kodu 1, ALINAN $rc"; exit 1
+          fi
+      - name: Kurulu paket sürümü pyproject ile aynı mı
+        shell: bash
+        run: |
+          sürüm="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
+          "$RUNNER_TEMP/temiz/bin/runtime-pin-sync" --version | grep -q " $sürüm$"

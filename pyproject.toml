@@ -39,6 +39,7 @@ dev = [
     "pytest-cov>=5.0.0,<8.0.0",
     "ruff>=0.8.0,<1.0.0",
     "mypy>=1.10.0,<2.0.0",
+    "build>=1.2.0,<2.0.0",   # paketleme doğrulaması (wheel/sdist) — yalnız geliştirme
 ]
 
 [project.scripts]

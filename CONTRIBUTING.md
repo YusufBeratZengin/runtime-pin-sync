@@ -19,6 +19,11 @@ Thanks for considering a contribution! Small, focused PRs are ideal.
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 bash scripts/check.sh
+
+# packaging: wheel-only clean install (no runtime deps, no PyPI)
+python -m build --outdir dist
+python -m venv .venv-wheel
+.venv-wheel/bin/pip install --no-index --find-links dist runtime-pin-sync
 ```
 
 ## Layout
