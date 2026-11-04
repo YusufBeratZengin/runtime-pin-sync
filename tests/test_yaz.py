@@ -230,6 +230,72 @@ def test_kalan_çelişki_başarı_sunulmaz(tmp_path, monkeypatch):
     assert elle and any("senkron sonrası" in d.gerekce for d in elle)
 
 
+# --- regresyon: depo içi symlink okunur, asla yazılmaz ------------------------
+
+
+def test_depo_içi_symlink_okunur_ama_yazılmaz(tmp_path):
+    # README sözleşmesi: depo DIŞINA çıkan bağlantının içeriği okunmadan
+    # reddedilir (test_symlink_hedef_depo_dışına_yazılmaz); depo İÇİNDE kalan
+    # bağlantı depo içeriğidir → karşılaştırmaya girer, ama yazım yolu her
+    # symlink'i reddeder (elle düzeltilmeli), bağlantı dosyası ezilmez.
+    import pytest
+
+    depo = tmp_path / "depo"
+    (depo / "paket").mkdir(parents=True)
+    (depo / ".tool-versions").write_text("node 22\n", encoding="utf-8")
+    (depo / ".nvmrc").write_text("20.11.0\n", encoding="utf-8")
+    try:
+        (depo / "paket" / ".nvmrc").symlink_to(depo / ".nvmrc")
+    except OSError:  # Windows: symlink hakkı yoksa atla
+        pytest.skip("symlink desteklenmiyor")
+
+    okunan = [p for p in tara(depo) if p.dosya == "paket/.nvmrc"]
+    assert okunan and okunan[0].ham == "20.11.0" and okunan[0].uyari is None
+
+    otomatik, elle = senkronla(depo, ".tool-versions", False)
+    assert any(d.dosya == ".nvmrc" for d in otomatik)
+    baglanti = [d for d in elle if d.dosya == "paket/.nvmrc"]
+    assert baglanti and "symlink" in baglanti[0].gerekce
+    assert (depo / "paket" / ".nvmrc").is_symlink()          # bağlantı korunur
+    assert (depo / ".nvmrc").read_text(encoding="utf-8") == "22\n"
+
+
+# --- regresyon: yazım atomik — kesinti hedefi bozmaz --------------------------
+
+
+def test_replace_başarısızsa_hedef_eski_içerikle_kalır(tmp_path, monkeypatch):
+    # Doğrudan write_bytes hedefi kesip yeniden yazıyordu: replace aşamasında
+    # hata olsa bile dosya çoktan değişmiş olurdu. Geçici dosya + os.replace
+    # kuralında hedef ESKİ baytlarıyla kalır, artık .tmp kalmaz.
+    from runtime_pin_sync import yaz as yaz_modul
+
+    yaz(tmp_path, ".tool-versions", "node 20.11.0\n")
+    yaz(tmp_path, ".nvmrc", "22\n")
+    önce = (tmp_path / ".nvmrc").read_bytes()
+
+    def patlayan(*_args, **_kwargs):
+        raise OSError("sahte replace hatası")
+
+    monkeypatch.setattr(yaz_modul.os, "replace", patlayan)
+    otomatik, elle = senkronla(tmp_path, ".tool-versions", False)
+
+    assert otomatik == []
+    assert any("uygulanamadı" in d.gerekce for d in elle)
+    assert (tmp_path / ".nvmrc").read_bytes() == önce        # bozulmadı/boşalmadı
+    assert list(tmp_path.glob("*.tmp")) == []                 # geçici dosya temizlendi
+
+
+def test_atomik_yazma_dosya_izinlerini_korur(tmp_path):
+    from runtime_pin_sync.yaz import _atomik_yaz
+
+    hedef = tmp_path / ".nvmrc"
+    hedef.write_bytes(b"22\n")
+    önce = hedef.stat().st_mode
+    _atomik_yaz(hedef, b"20\n")
+    assert hedef.read_bytes() == b"20\n"
+    assert hedef.stat().st_mode == önce                       # mkstemp 0600'e düşürmez
+
+
 # --- regresyon: satır sonları bayt düzeyinde korunur ---------------------------
 
 def test_crlf_karışık_satır_sonları_korunur(tmp_path):

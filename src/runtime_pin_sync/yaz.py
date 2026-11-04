@@ -9,6 +9,8 @@ testi bunu doğrular). Korunanlar:
 - Referans sabit bir sürüm değilse (``>=22``, ``22, 24``) hiçbir şey yazılmaz.
 - Hedef dosya depo dışında kalıyorsa veya symlink'se yazılmaz (depodan çıkış
   kapalı); ham dosya bayt düzeyinde okunur, satır sonları AYNEN korunur.
+  Yazım atomiktir: aynı dizindeki geçici dosya + ``os.replace`` — kesilen ya
+  da hata veren yazım hedefi eski baytlarıyla bırakır, yarım dosya oluşmaz.
 - Aynı değerin birden çok satırı varsa TÜM konumlar yazılır.
 - Yazmadan sonra depo yeniden taranır; giderilemeyen çelişki başarı sayılmaz,
   "elle düzeltilmeli" listesinde exit 1'e katkı koyar.
@@ -16,7 +18,10 @@ testi bunu doğrular). Korunanlar:
 
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -170,7 +175,54 @@ def _uygula(kok: Path, d: Degisiklik, dosya: str) -> None:
     if yeni_satir is None:
         raise ValueError(f"{d.eski!r} belirteci satırda tek ve bağımsız değil")
     satirlar[i] = yeni_satir
-    tam.write_bytes("".join(satirlar).encode("utf-8"))
+    _atomik_yaz(tam, "".join(satirlar).encode("utf-8"))
+
+
+def _atomik_yaz(hedef: Path, veri: bytes) -> None:
+    """Geçici dosyaya yazıp ``os.replace`` ile hedefin üzerine koyar.
+
+    Doğrudan ``write_bytes`` hedefi kesip yeniden yazıyordu: süreç kesilirse
+    ya da disk yazımı hata verirse dosya boş/kısmi kalabiliyordu. Burada veri
+    ÖNCE aynı dizindeki geçici dosyaya yazılıp ``fsync`` edilir, sonra atomik
+    yeniden adlandırmayla yerine konur — hata hâlinde hedef ESKİ baytlarıyla
+    kalır. Geçici dosya her durumda silinir; mevcut izinler korunur.
+    """
+    try:
+        izin: int | None = hedef.stat().st_mode
+    except OSError:  # pragma: no cover - çağrı öncesi hedef okunmuştu
+        izin = None
+    fd, geçici = tempfile.mkstemp(
+        prefix=f".{hedef.name}.", suffix=".tmp", dir=str(hedef.parent))
+    try:
+        with os.fdopen(fd, "wb") as dosya:
+            dosya.write(veri)
+            dosya.flush()
+            os.fsync(dosya.fileno())
+        if izin is not None:
+            with contextlib.suppress(OSError):
+                os.chmod(geçici, izin)
+        os.replace(geçici, hedef)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(geçici)
+        raise
+    _dizin_senkronla(hedef.parent)
+
+
+def _dizin_senkronla(dizin: Path) -> None:
+    """POSIX'te yeniden adlandırmanın diske işlemesini garanti eder."""
+    o_dizin = int(getattr(os, "O_DIRECTORY", 0))
+    if not o_dizin:  # pragma: no cover - Windows'ta O_DIRECTORY yok
+        return
+    fd: int | None = None
+    try:
+        fd = os.open(str(dizin), os.O_RDONLY | o_dizin)
+        os.fsync(fd)
+    except OSError:  # pragma: no cover - platforma bağlı
+        pass
+    finally:
+        if fd is not None:
+            os.close(fd)
 
 
 def _token_degistir(satir: str, eski: str, yeni: str) -> str | None:
