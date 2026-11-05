@@ -1,0 +1,20 @@
+# Geliştirme araçları için TAM sürüm kilidi (constraints).
+#
+# Neden iki katman var:
+#   * pyproject.toml [project.optional-dependencies].dev → KURULABİLİRLİK
+#     tabanı (>= alt sınır, < üst sınır). Paketi kuran herkes için geçerli.
+#   * bu dosya → KAPININ TEKRARLANABİLİRLİĞİ. CI ve scripts/check.sh bu
+#     kilitlerle kurar; böylece "dün yeşildi, bugün kırmızı" farkı araç
+#     sürümünden değil koddan gelir.
+#
+# Sürüm yükseltmek bilinçli bir iştir: burada değiştir, `bash scripts/check.sh`
+# yeşilse commit et. Kilitler pyproject aralıklarıyla ÇELİŞEMEZ;
+# tests/test_bagimlilik_kisitlari.py bunu denetler.
+#
+# Hepsi saf-Python ya da çok platformlu tekerlek: Python 3.10–3.14,
+# Linux/macOS/Windows (CI matrisiyle doğrulandı).
+pytest==9.1.1
+pytest-cov==7.1.0
+ruff==0.17.1
+mypy==1.20.2
+build==1.6.1

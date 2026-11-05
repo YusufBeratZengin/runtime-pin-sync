@@ -18,7 +18,8 @@ Thanks for considering a contribution! Small, focused PRs are ideal.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"
+# -c pins the gate tools to the versions this repo is verified with
+.venv/bin/pip install -e ".[dev]" -c scripts/kisitlar-dev.txt
 bash scripts/check.sh
 
 # packaging: wheel-only clean install (no runtime deps, no PyPI)
@@ -26,6 +27,23 @@ python -m build --outdir dist
 python -m venv .venv-wheel
 .venv-wheel/bin/pip install --no-index --find-links dist runtime-pin-sync
 ```
+
+### Two layers of dev pins
+
+`pyproject.toml` `[dev]` carries bounded ranges (`>=x,<y`) — the floor every
+contributor can install. `scripts/kisitlar-dev.txt` carries exact versions —
+what CI and `scripts/check.sh` actually use, so a red gate means your code,
+not a tool upgrade. Bump the lock deliberately, rerun the gate, commit.
+`tests/test_bagimlilik_kisitlari.py` fails if a lock falls outside the
+matching range or names a package that `[dev]` does not list.
+
+### Secret scan exit codes
+
+`scripts/sir_tarama.sh` (first step of the gate, also run by the pre-commit
+hook) is a known-pattern scanner, not an entropy scanner. It exits `0` when
+every pattern was scanned with no match, `1` on a finding, and `2` when the
+scan could not complete (`grep` missing, permission/IO error). `2` fails the
+gate: an incomplete scan is never reported as clean.
 
 ## Layout
 

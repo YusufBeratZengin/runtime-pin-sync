@@ -17,10 +17,18 @@ else
   echo "[check] python3/python bulunamadı"; exit 127
 fi
 
+# Geliştirme araçları: aralıklar pyproject.toml [dev]'de, tam sürümler
+# scripts/kisitlar-dev.txt'te (tekrarlanabilirlik). Kilit dosyası yoksa
+# aralıklarla kurulur; kapı yine çalışır.
+KISIT=scripts/kisitlar-dev.txt
+if [ -f "$KISIT" ]; then KISIT_ARG=(-c "$KISIT"); else KISIT_ARG=(); fi
+
 ensure() {  # $1 = import adı, $2 = pip paketi
   if ! "$PY" -c "import $1" >/dev/null 2>&1; then
     echo "[check] $2 kuruluyor (geliştirme bağımlılığı)..."
-    "$PY" -m pip install -q "$2"
+    # bash 3.2 (macOS) + `set -u`: boş dizinin genişlemesi hata verir,
+    # bu yüzden +"..." deyimi kullanılır.
+    "$PY" -m pip install -q ${KISIT_ARG[@]+"${KISIT_ARG[@]}"} "$2"
   fi
 }
 ensure pytest "pytest>=8.0.0,<10.0.0"

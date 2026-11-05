@@ -26,7 +26,8 @@ jobs:
       - name: Geliştirme bağımlılıkları (sürüm sınırları pyproject.toml [dev]'de tanımlıdır)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          # Tam sürüm kilidi: pyproject aralıkları + scripts/kisitlar-dev.txt
+          python -m pip install -e ".[dev]" -c scripts/kisitlar-dev.txt
       - name: Kapı (ruff + mypy + pytest/cov)
         # Windows'ta bash git-runtime ile gelir; check.sh iki platformda da çalışır
         shell: bash
@@ -60,7 +61,8 @@ jobs:
           python-version: "3.12"
       - name: Wheel ve sdist üret
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip
+          python -m pip install build -c scripts/kisitlar-dev.txt
           python -m build --outdir dist
       - name: Yalnız wheel'i temiz sanal ortama kur
         shell: bash

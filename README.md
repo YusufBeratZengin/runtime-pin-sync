@@ -298,7 +298,7 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-bash scripts/check.sh    # ruff + mypy --strict + pytest --cov-fail-under=85
+bash scripts/check.sh    # secret scan + ruff + mypy --strict + pytest --cov-fail-under=85
 
 # packaging check (same idea as CI's `paket` job: wheel only, no PyPI)
 python -m build --outdir dist

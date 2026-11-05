@@ -7,6 +7,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- `scripts/kisitlar-dev.txt`: exact pins for the gate tools (pytest,
+  pytest-cov, ruff, mypy, build). CI and `scripts/check.sh` install with
+  `-c`, so reproducible runs no longer depend on which version pip picked;
+  `tests/test_bagimlilik_kisitlari.py` keeps the locks inside the
+  `pyproject.toml` `[dev]` ranges.
 - `.sdkmanrc` (SDKMAN!) finder: the `java=` line is read as a Java source.
   `java=17.0.2+8` keeps its build metadata, a distribution suffix
   (`java=21.0.1-tem`) is not part of the version and survives a `sync`
@@ -21,6 +26,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   README.tr and CONTRIBUTING.
 
 ### Fixed
+- `scripts/sir_tarama.sh` no longer treats a failed `grep` as "no match".
+  Exit codes are now `0` clean, `1` finding, `2` scan could not complete
+  (missing `grep`, permission or IO error); `2` fails the gate, so an
+  unreadable file or directory can never be reported as a clean scan.
+  Regression tests in `tests/test_sir_tarama.py` run the script against a
+  temporary repo copy with a stubbed `grep`.
 - Fixed clean-clone pytest collection failures (`ModuleNotFoundError: No module named 'runtime_pin_sync'`) by adding `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` and defining `export PYTHONPATH="src"` in `scripts/check.sh`.
 - Pinned developmental dependency version bounds in `pyproject.toml` (`[project.optional-dependencies] dev`) for reproducible test and CI execution.
 - Directory read errors during a scan are no longer swallowed by `os.walk`:

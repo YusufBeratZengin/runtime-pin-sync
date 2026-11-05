@@ -294,7 +294,7 @@ kontrolü `[dev]` ekstrasındaki araçları ister — bunların hiçbiri kullan�
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-bash scripts/check.sh    # ruff + mypy --strict + pytest --cov-fail-under=85
+bash scripts/check.sh    # sır taraması + ruff + mypy --strict + pytest --cov-fail-under=85
 
 # paketleme kontrolü (CI'daki `paket` işiyle aynı fikir: yalnız wheel, PyPI yok)
 python -m build --outdir dist
