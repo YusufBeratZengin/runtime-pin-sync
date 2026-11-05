@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from ..dil import m as _m
 from ..sabitleme import Sabitleme
 from . import pin, satirlar
 
@@ -18,13 +19,14 @@ _POM_ANAHTARLAR = (
 )
 
 
-def surum_dosyasi(dosya: str, icerik: str) -> list[Sabitleme]:
+def surum_dosyasi(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     for i, s in enumerate(satirlar(icerik), start=1):
         t = s.strip()
         if not t or t.startswith("#"):
             continue
-        return [pin("java", dosya, "java-version", t, satir=i)]
-    return [Sabitleme("java", dosya, "java-version", "", uyari="okunamadı: boş dosya")]
+        return [pin("java", dosya, "java-version", t, satir=i, lang=lang)]
+    return [Sabitleme("java", dosya, "java-version", "",
+                      uyari=_m(lang, "w_empty_file"))]
 
 
 #: `.sdkmanrc` satırı: ``java=17.0.2+8`` / ``java=21.0.1-tem``
@@ -34,7 +36,7 @@ _SDKMAN_SATIR = re.compile(r"^\s*([A-Za-z][\w.-]*)\s*=\s*(.*?)\s*$")
 _SDKMAN_SURUM = re.compile(r"^v?(\d+(?:\.\d+)*)(\+\d+)?(?:-[A-Za-z][\w.]*)?$")
 
 
-def sdkmanrc(dosya: str, icerik: str) -> list[Sabitleme]:
+def sdkmanrc(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     """SDKMAN! `.sdkmanrc` içindeki ``java=`` satırını okur.
 
     Biçim ``anahtar=değer`` satırlarıdır; yalnız ``java`` anahtarı Java
@@ -54,17 +56,17 @@ def sdkmanrc(dosya: str, icerik: str) -> list[Sabitleme]:
         deger = m.group(2)
         if not deger:
             return [Sabitleme("java", dosya, "sdkmanrc", "",
-                              uyari="okunamadı: boş belirteç")]
+                              uyari=_m(lang, "w_empty_token"))]
         sm = _SDKMAN_SURUM.match(deger)
         if sm is None:
             return [Sabitleme("java", dosya, "sdkmanrc", deger,
                               dinamik=True, satir=i)]
         ham = sm.group(1) + (sm.group(2) or "")
-        return [pin("java", dosya, "sdkmanrc", ham, satir=i)]
+        return [pin("java", dosya, "sdkmanrc", ham, satir=i, lang=lang)]
     return []
 
 
-def pom(dosya: str, icerik: str) -> list[Sabitleme]:
+def pom(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     satir_list = satirlar(icerik)
     sonuc: list[Sabitleme] = []
     for anahtar in _POM_ANAHTARLAR:
@@ -76,6 +78,7 @@ def pom(dosya: str, icerik: str) -> list[Sabitleme]:
                 if "${" in ham:  # <java.version>${java.home}</...> gibi
                     sonuc.append(Sabitleme("java", dosya, "pom", ham, dinamik=True, satir=i))
                 else:
-                    sonuc.append(pin("java", dosya, "pom", ham, satir=i))
+                    sonuc.append(pin("java", dosya, "pom", ham, satir=i,
+                                     lang=lang))
                 break  # her anahtarın yalnız ilk geçişi
     return sonuc

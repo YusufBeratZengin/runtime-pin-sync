@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 
+from ..dil import m as _m
 from ..sabitleme import Sabitleme
 from . import pin, satirlar
 
@@ -43,7 +44,8 @@ def lts_coz(ham: str) -> tuple[str, bool]:
     return ham.strip(), True
 
 
-def surum_dosyasi(dosya: str, icerik: str, tur: str = "nvmrc") -> list[Sabitleme]:
+def surum_dosyasi(dosya: str, icerik: str, tur: str = "nvmrc", *,
+                   lang: str = "tr") -> list[Sabitleme]:
     """.nvmrc / .node-version: ilk boş olmayan satır tek belirteçtir."""
     satir_list = satirlar(icerik)
     for i, s in enumerate(satir_list, start=1):
@@ -53,27 +55,27 @@ def surum_dosyasi(dosya: str, icerik: str, tur: str = "nvmrc") -> list[Sabitleme
         deger, biliniyor = lts_coz(t)
         if not biliniyor:
             return [Sabitleme("node", dosya, tur, t, dinamik=True, satir=i)]
-        return [pin("node", dosya, tur, deger, satir=i)]
-    return [Sabitleme("node", dosya, tur, "", uyari="okunamadı: boş dosya")]
+        return [pin("node", dosya, tur, deger, satir=i, lang=lang)]
+    return [Sabitleme("node", dosya, tur, "", uyari=_m(lang, "w_empty_file"))]
 
 
-def package_json(dosya: str, icerik: str) -> list[Sabitleme]:
+def package_json(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     try:
         veri = json.loads(icerik)
     except (ValueError, TypeError) as exc:
         return [Sabitleme("node", dosya, "engines", "",
-                          uyari=f"okunamadı: geçersiz JSON ({exc})")]
+                          uyari=_m(lang, "w_invalid_json", hata=exc))]
     if not isinstance(veri, dict):
         return [Sabitleme("node", dosya, "engines", "",
-                          uyari="okunamadı: JSON bir nesne değil")]
+                          uyari=_m(lang, "w_json_not_object"))]
     engines = veri.get("engines")
     if not isinstance(engines, dict) or "node" not in engines:
         return []
     ham = engines["node"]
     if not isinstance(ham, str):
         return [Sabitleme("node", dosya, "engines", str(ham),
-                          uyari="okunamadı: engines.node bir metin değil")]
-    return [pin("node", dosya, "engines", ham,
+                          uyari=_m(lang, "w_engines_not_text"))]
+    return [pin("node", dosya, "engines", ham, lang=lang,
                 satir=_engines_node_satırı(icerik, ham))]
 
 

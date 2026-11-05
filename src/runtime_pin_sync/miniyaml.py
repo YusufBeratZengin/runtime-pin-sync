@@ -30,22 +30,24 @@ __all__ = ["ayristir", "MiniYamlError"]
 
 from typing import Any
 
+from .dil import m
+
 
 class MiniYamlError(ValueError):
     pass
 
 
-def ayristir(metin: str) -> Any:
-    satirlar = _hazirla(metin)
-    deger, _ = _blok(satirlar, 0, 0)
+def ayristir(metin: str, *, lang: str = "tr") -> Any:
+    satirlar = _hazirla(metin, lang=lang)
+    deger, _ = _blok(satirlar, 0, 0, lang=lang)
     return deger
 
 
-def _hazirla(metin: str) -> list[tuple[int, str]]:
+def _hazirla(metin: str, *, lang: str = "tr") -> list[tuple[int, str]]:
     satirlar: list[tuple[int, str]] = []
     for ham in metin.splitlines():
         if "\t" in ham[: len(ham) - len(ham.lstrip())]:
-            raise MiniYamlError("girinti için sekme kullanılamaz")
+            raise MiniYamlError(m(lang, "yaml_tab_indent"))
         kiris = len(ham) - len(ham.lstrip(" "))
         govde = ham.strip()
         if not govde or govde.startswith("#"):
@@ -62,29 +64,31 @@ def _satiri_atla(satirlar: list[tuple[int, str]], i: int, kiris: int) -> int:
     return i
 
 
-def _blok(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[Any, int]:
+def _blok(satirlar: list[tuple[int, str]], i: int, kiris: int, *,
+          lang: str = "tr") -> tuple[Any, int]:
     if i >= len(satirlar):
         return None, i
     if satirlar[i][1].startswith("- "):
-        return _dizi(satirlar, i, satirlar[i][0])
+        return _dizi(satirlar, i, satirlar[i][0], lang=lang)
     if satirlar[i][1] == "-":
-        return _dizi(satirlar, i, satirlar[i][0])
-    return _esleme(satirlar, i, kiris)
+        return _dizi(satirlar, i, satirlar[i][0], lang=lang)
+    return _esleme(satirlar, i, kiris, lang=lang)
 
 
-def _esleme(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[dict[str, Any], int]:
+def _esleme(satirlar: list[tuple[int, str]], i: int, kiris: int, *,
+            lang: str = "tr") -> tuple[dict[str, Any], int]:
     sonuc: dict[str, Any] = {}
     while i < len(satirlar):
         gir, govde = satirlar[i]
         if gir < kiris:
             break
         if gir > kiris:
-            raise MiniYamlError(f"beklenmeyen girinti: {govde!r}")
+            raise MiniYamlError(m(lang, "yaml_unexpected_indent", govde=govde))
         if govde.startswith("- "):
             break
         anahtar, ayrac, deger = govde.partition(":")
         if not ayrac:
-            raise MiniYamlError(f"eşleme beklenirken: {govde!r}")
+            raise MiniYamlError(m(lang, "yaml_expected_mapping", govde=govde))
         anahtar = _duz(anahtar)
         deger = _yorum_temizle(deger.strip())
         if deger in ("|", ">", "|-", ">-", "|+", ">+"):
@@ -96,15 +100,17 @@ def _esleme(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[dict[s
         else:
             i += 1
             if i < len(satirlar) and satirlar[i][0] > gir:
-                sonuc[anahtar], i = _blok(satirlar, i, satirlar[i][0])
+                sonuc[anahtar], i = _blok(satirlar, i, satirlar[i][0],
+                                          lang=lang)
             elif i < len(satirlar) and satirlar[i][0] == gir and satirlar[i][1].startswith("-"):
-                sonuc[anahtar], i = _dizi(satirlar, i, gir)
+                sonuc[anahtar], i = _dizi(satirlar, i, gir, lang=lang)
             else:
                 sonuc[anahtar] = None
     return sonuc, i
 
 
-def _dizi(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[list[Any], int]:
+def _dizi(satirlar: list[tuple[int, str]], i: int, kiris: int, *,
+          lang: str = "tr") -> tuple[list[Any], int]:
     sonuc: list[Any] = []
     while i < len(satirlar):
         gir, govde = satirlar[i]
@@ -114,7 +120,7 @@ def _dizi(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[list[Any
         if not govde:
             i += 1
             if i < len(satirlar) and satirlar[i][0] > kiris:
-                deger, i = _blok(satirlar, i, satirlar[i][0])
+                deger, i = _blok(satirlar, i, satirlar[i][0], lang=lang)
                 sonuc.append(deger)
             else:
                 sonuc.append(None)
@@ -122,7 +128,7 @@ def _dizi(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[list[Any
             # "- key: value" — aynı satırda başlayan eşleme, girinti = kiris + 2
             satir_kiris = kiris + 2
             i += 1
-            esleme, i = _esleme(satirlar, i, satir_kiris)
+            esleme, i = _esleme(satirlar, i, satir_kiris, lang=lang)
             anahtar, _, deger = govde.partition(":")
             anahtar = _duz(anahtar)
             deger = _yorum_temizle(deger.strip())
@@ -130,7 +136,7 @@ def _dizi(satirlar: list[tuple[int, str]], i: int, kiris: int) -> tuple[list[Any
                 esleme = {anahtar: _deger(deger), **esleme}
             else:
                 if i < len(satirlar) and satirlar[i][0] > satir_kiris:
-                    alt, i = _blok(satirlar, i, satirlar[i][0])
+                    alt, i = _blok(satirlar, i, satirlar[i][0], lang=lang)
                 else:
                     alt = None
                 esleme = {anahtar: alt, **esleme}

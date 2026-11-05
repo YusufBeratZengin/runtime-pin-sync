@@ -2,7 +2,7 @@
 
 from runtime_pin_sync.bulucular import pin
 from runtime_pin_sync.karsilastir import celiski
-from runtime_pin_sync.rapor import json_sözlüğü, tablo, uyari_cevir
+from runtime_pin_sync.rapor import json_sözlüğü, tablo
 from runtime_pin_sync.sabitleme import Sabitleme
 
 
@@ -52,12 +52,19 @@ def test_json_sözlüğü_alanları():
     assert durumlar["b.json"] == "okunamadı"
 
 
-def test_tablo_ingilizce_ve_uyari_cevir():
+def test_tablo_ingilizce_uyariyi_oldugu_gibi_gosterir():
+    """Uyarı metni KAYNAĞINDA yerelleşir; rapor katmanı metin değiştirmez.
+
+    Eski davranış (Türkçe cümle + substring tablosu) eksik eşlemede
+    ``--lang en`` çıktısında Türkçe bırakıyordu; bu sözleşme onu imkânsız
+    kılar: burada verilen metin ne ise çıktıya o girer.
+    """
     pimler = [
         pin("node", ".nvmrc", "nvmrc", "20"),
         pin("node", "Dockerfile", "dockerfile", "22"),
         Sabitleme("python", "ci.yml", "ci", "${{ }}", dinamik=True),
-        Sabitleme("python", "empty.txt", "toolchain", "", uyari="okunamadı: boş dosya"),
+        Sabitleme("python", "empty.txt", "toolchain", "",
+                  uyari="could not read: empty file"),
     ]
     celiskiler = celiski(pimler)
     out = tablo(pimler, celiskiler, lang="en")
@@ -76,21 +83,14 @@ def test_tablo_ingilizce_bos():
 def test_json_sozlugu_ingilizce():
     pimler = [
         pin("node", ".nvmrc", "nvmrc", "20"),
-        Sabitleme("node", "b.json", "engines", "", uyari="okunamadı: boş belirteç"),
+        Sabitleme("node", "b.json", "engines", "",
+                  uyari="empty token: could not read"),
     ]
     d = json_sözlüğü(pimler, [], lang="en")
     assert d["sabitlemeler"][0]["durum"] == "consistent"
     assert d["sabitlemeler"][1]["durum"] == "could not read"
-    assert d["sabitlemeler"][1]["uyari"] == "could not read: empty token"
-    assert d["uyarilar"] == ["could not read: empty token"]
-
-
-def test_uyari_cevir_fonksiyonu():
-    assert uyari_cevir("okunamadı: boş dosya", "en") == "could not read: empty file"
-    assert uyari_cevir("okunamadı: desteklenmeyen YAML", "en") == "could not read: unsupported YAML"
-    assert uyari_cevir("okunamadı: boş dosya", "tr") == "okunamadı: boş dosya"
-    assert uyari_cevir(None, "en") == ""
-
+    assert d["sabitlemeler"][1]["uyari"] == "empty token: could not read"
+    assert d["uyarilar"] == ["empty token: could not read"]
 
 
 def test_tablo_tur_etiketi_dile_gore_cevrilir():
@@ -103,7 +103,7 @@ def test_tablo_tur_etiketi_dile_gore_cevrilir():
 
 def test_tablo_ingilizce_dizin_uyarisi_etiketi():
     pimler = [Sabitleme("bilinmeyen", "kilitli", "dizin", "",
-                        uyari="okunamadı: dizin taranamadı (Permission denied)")]
+                        uyari="could not read: directory not scanned (Permission denied)")]
     out = tablo(pimler, [], lang="en")
     assert "unknown" in out and "directory" in out
     assert "could not read: directory not scanned" in out

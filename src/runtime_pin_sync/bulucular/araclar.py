@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 
 from .. import minitoml
+from ..dil import m as _m
 from ..sabitleme import Sabitleme
 from . import DINAMIK_İŞARET, grid_pin, pin, satirlar
 
@@ -24,7 +25,8 @@ TAKMA_ADLAR = {
 _BILINMEYEN_DEGERLER = {"latest", "latest-stable", "current", "system", "default"}
 
 
-def tool_versions(dosya: str, icerik: str) -> list[Sabitleme]:
+def tool_versions(dosya: str, icerik: str, *,
+                  lang: str = "tr") -> list[Sabitleme]:
     sonuc: list[Sabitleme] = []
     for i, s in enumerate(satirlar(icerik), start=1):
         govde = s.split("#", 1)[0].strip()
@@ -40,16 +42,17 @@ def tool_versions(dosya: str, icerik: str) -> list[Sabitleme]:
         # asdf çoklu kurulum: "python 3.12.1 3.11.8" İKİSİNİ birden kurar →
         # BİRLEŞİM (ızgara) olarak modellenir; ilk değere indirgenmez,
         # hiçbir üyeyle tek başına çelişki sayılmaz.
-        sonuc.append(_deger_pimi(cz, dosya, "tool-versions", degerler, i))
+        sonuc.append(_deger_pimi(cz, dosya, "tool-versions", degerler, i,
+                                 lang=lang))
     return sonuc
 
 
-def mise(dosya: str, icerik: str) -> list[Sabitleme]:
+def mise(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     try:
-        veri = minitoml.oku(icerik.encode("utf-8"))
+        veri = minitoml.oku(icerik.encode("utf-8"), lang=lang)
     except (ValueError, UnicodeDecodeError) as exc:
         return [Sabitleme("node", dosya, "mise", "",
-                          uyari=f"okunamadı: geçersiz TOML ({exc})")]
+                          uyari=_m(lang, "w_invalid_toml", hata=exc))]
     araclar = veri.get("tools")
     if not isinstance(araclar, dict):
         return []
@@ -72,12 +75,13 @@ def mise(dosya: str, icerik: str) -> list[Sabitleme]:
         # kipinde de aynı birleşim kümesi karşılaştırılır; üyelerden biri
         # referans diye seçilmez.
         sonuc.append(_deger_pimi(cz, dosya, "mise", metinler,
-                                 _tools_satırı(satirlar(icerik), str(ad))))
+                                 _tools_satırı(satirlar(icerik), str(ad)),
+                                 lang=lang))
     return sonuc
 
 
 def _deger_pimi(cz: str, dosya: str, tur: str, degerler: list[str],
-                satir: int | None) -> Sabitleme:
+                satir: int | None, *, lang: str = "tr") -> Sabitleme:
     """Çok değerli sürüm listesini TEK sabitlemeye indirger.
 
     - Bir üye bile dinamik/çözülemeyen takma adsa listenin TAMAMI dinamiktir
@@ -90,7 +94,7 @@ def _deger_pimi(cz: str, dosya: str, tur: str, degerler: list[str],
         return Sabitleme(cz, dosya, tur, ", ".join(degerler),
                          dinamik=True, satir=satir)
     if len(degerler) == 1:
-        return pin(cz, dosya, tur, degerler[0], satir=satir)
+        return pin(cz, dosya, tur, degerler[0], satir=satir, lang=lang)
     return grid_pin(cz, dosya, tur, degerler, satir=satir)
 
 

@@ -7,6 +7,7 @@ olarak döner (kabul ölçütü 4).
 
 from __future__ import annotations
 
+from ..dil import m as _m
 from ..sabitleme import Sabitleme
 from ..versiyon import spek_ayristir
 
@@ -31,6 +32,8 @@ def pin(
     ham: str,
     satir: int | None = None,
     yeniden_yazilabilir: bool = True,
+    *,
+    lang: str = "tr",
 ) -> Sabitleme:
     """Ham belirteçten Sabitleme üretir; çözülemeyeni uyarı, dinamiği atlanır yapar."""
     ham = (ham or "").strip()
@@ -38,7 +41,8 @@ def pin(
         return Sabitleme(calisma_zamani, dosya, tur, ham, dinamik=True, satir=satir)
     aralik = spek_ayristir(ham, semver=_semver_mi(calisma_zamani)) if ham else None
     if aralik is None:
-        uyari = f"okunamadı: {ham!r} sürüm belirteçi çözümlenemedi" if ham else "okunamadı: boş belirteç"
+        uyari = (_m(lang, "w_token_unparsable", ham=ham) if ham
+                 else _m(lang, "w_empty_token"))
         return Sabitleme(calisma_zamani, dosya, tur, ham, uyari=uyari, satir=satir)
     return Sabitleme(calisma_zamani, dosya, tur, ham, aralik=aralik, satir=satir,
                      yeniden_yazilabilir=yeniden_yazilabilir)

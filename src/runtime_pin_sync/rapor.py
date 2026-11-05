@@ -6,7 +6,7 @@ from typing import Any
 
 from .sabitleme import Celiski, Sabitleme
 
-__all__ = ["tablo", "json_sözlüğü", "uyari_cevir", "tur_etiketi"]
+__all__ = ["tablo", "json_sözlüğü", "tur_etiketi"]
 
 #: Tür (``tur``) alanı JSON'da KARARLI bir kimliktir; insan tablosunda ise
 #: dile göre okunur etikete çevrilir. Yalnız Türkçe kalan kimlikler listelenir;
@@ -26,38 +26,6 @@ _CALISMA_ZAMANI_ETIKETLERI: dict[str, tuple[str, str]] = {
     "bilinmeyen": ("bilinmeyen", "unknown"),
 }
 
-_CEVIRI_TABLOSU: list[tuple[str, str]] = [
-    ("okunamadı:", "could not read:"),
-    ("dizin taranamadı", "directory not scanned"),
-    ("boş dosya", "empty file"),
-    ("boş belirteç", "empty token"),
-    ("sürüm belirteçi çözümlenemedi", "could not parse version token"),
-    ("çözümlenemeyen etiket", "unresolvable tag"),
-    ("desteklenmeyen etiket soneki", "unsupported tag suffix"),
-    ("ön sürüm etiketi karşılaştırmaya girmez",
-     "prerelease tag excluded from comparison"),
-    ("girinti için sekme kullanılamaz", "tabs cannot be used for indentation"),
-    ("beklenmeyen girinti", "unexpected indentation"),
-    ("eşleme beklenirken", "expected a mapping"),
-    ("okuma reddedildi", "read refused"),
-    ("desteklenmeyen YAML", "unsupported YAML"),
-    ("iş akışı bir eşleme değil", "workflow is not a mapping"),
-    ("geçersiz JSONC", "invalid JSONC"),
-    ("geçersiz JSON", "invalid JSON"),
-    ("geçersiz TOML", "invalid TOML"),
-    ("JSON bir nesne değil", "JSON is not an object"),
-    ("engines.node bir metin değil", "engines.node is not a string"),
-    ("requires-python bir metin değil", "requires-python is not a string"),
-    ("channel bir metin değil", "channel is not a string"),
-    ("go.mod içinde 'go' satırı yok", "no 'go' directive in go.mod"),
-    ("FROM satırı çözümlenemedi", "could not parse FROM line"),
-    ("bağlantı depo dışına işaret ediyor", "link points outside repository"),
-    ("depo sınırını aşıyor", "points outside repository"),
-    ("ön sürüm karşılaştırmaya girmez", "prerelease excluded from comparison"),
-    ("tanınmayan", "unrecognized"),
-    ("bulunamadı", "not found"),
-]
-
 
 def tur_etiketi(tur: str, lang: str = "tr") -> str:
     """Tür kimliğinin insan-okur etiketi (tr/en); JSON kimliği değişmez."""
@@ -69,18 +37,6 @@ def calisma_zamani_etiketi(ad: str, lang: str = "tr") -> str:
     """Çalışma zamanı sütunu etiketi (``bilinmeyen`` -> ``unknown``)."""
     tr, en = _CALISMA_ZAMANI_ETIKETLERI.get(ad, (ad, ad))
     return en if lang == "en" else tr
-
-
-def uyari_cevir(uyari: str | None, lang: str = "tr") -> str:
-    """Uyarı metnini istenen dile çevirir (varsayılan: tr)."""
-    if uyari is None:
-        return ""
-    if lang != "en":
-        return uyari
-    sonuc = uyari
-    for tr, en in _CEVIRI_TABLOSU:
-        sonuc = sonuc.replace(tr, en)
-    return sonuc
 
 
 def _durumlar(pimler: list[Sabitleme], celiskiler: list[Celiski],
@@ -166,7 +122,7 @@ def tablo(pimler: list[Sabitleme], celiskiler: list[Celiski],
         satirlar_out.append("NOTES:" if is_en else "NOTLAR:")
         for p in uyarilar:
             if is_en:
-                mesaj = uyari_cevir(p.uyari, "en") if p.uyari else "dynamic expression: not compared"
+                mesaj = p.uyari or "dynamic expression: not compared"
             else:
                 mesaj = p.uyari or "dinamik ifade: karşılaştırmaya girmedi"
             satirlar_out.append(f"  {p.dosya}: {mesaj}")
@@ -186,7 +142,7 @@ def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
                 "tur": p.tur,
                 "ham": p.ham,
                 "durum": durum[(p.calisma_zamani, p.dosya, p.tur, p.ham)],
-                "uyari": uyari_cevir(p.uyari, "en") if (is_en and p.uyari) else p.uyari,
+                "uyari": p.uyari,
             }
             for p in pimler
         ],
@@ -203,7 +159,7 @@ def json_sözlüğü(pimler: list[Sabitleme], celiskiler: list[Celiski],
             for c in celiskiler
         ],
         "uyarilar": [
-            uyari_cevir(p.uyari, "en") if is_en else p.uyari
+            p.uyari
             for p in pimler if p.uyari
         ],
         "dinamikler": [

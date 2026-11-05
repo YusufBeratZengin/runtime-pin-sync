@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .. import minitoml
+from ..dil import m as _m
 from ..sabitleme import Sabitleme
 from . import pin, satir_bul, satirlar
 
@@ -38,36 +39,40 @@ def _kanal(ham: str) -> tuple[str, str]:
     return t, "sürüm"
 
 
-def _çöz(dosya: str, tur: str, ham: str, satir: int | None) -> list[Sabitleme]:
+def _çöz(dosya: str, tur: str, ham: str, satir: int | None, *,
+         lang: str = "tr") -> list[Sabitleme]:
     deger, durum = _kanal(ham)
     if durum == "kanal":
         return [Sabitleme("rust", dosya, tur, ham, dinamik=True, satir=satir)]
     if durum == "ön-sürüm":
         return [Sabitleme("rust", dosya, tur, ham, dinamik=True, satir=satir,
-                          uyari=f"okunamadı: ön sürüm karşılaştırmaya girmez ({ham})")]
-    return [pin("rust", dosya, tur, deger, satir=satir)]
+                          uyari=_m(lang, "w_prerelease", ham=ham))]
+    return [pin("rust", dosya, tur, deger, satir=satir, lang=lang)]
 
 
-def kanal_dosyasi(dosya: str, icerik: str) -> list[Sabitleme]:
+def kanal_dosyasi(dosya: str, icerik: str, *,
+                   lang: str = "tr") -> list[Sabitleme]:
     for i, s in enumerate(satirlar(icerik), start=1):
         t = s.strip()
         if not t or t.startswith("#"):
             continue
-        return _çöz(dosya, "toolchain", t, i)
-    return [Sabitleme("rust", dosya, "toolchain", "", uyari="okunamadı: boş dosya")]
+        return _çöz(dosya, "toolchain", t, i, lang=lang)
+    return [Sabitleme("rust", dosya, "toolchain", "",
+                      uyari=_m(lang, "w_empty_file"))]
 
 
-def kanal_toml(dosya: str, icerik: str) -> list[Sabitleme]:
+def kanal_toml(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
     try:
-        veri = minitoml.oku(icerik.encode("utf-8"))
+        veri = minitoml.oku(icerik.encode("utf-8"), lang=lang)
     except (ValueError, UnicodeDecodeError) as exc:
         return [Sabitleme("rust", dosya, "toolchain-toml", "",
-                          uyari=f"okunamadı: geçersiz TOML ({exc})")]
+                          uyari=_m(lang, "w_invalid_toml", hata=exc))]
     arac = veri.get("toolchain")
     if not isinstance(arac, dict) or "channel" not in arac:
         return []
     ham = arac["channel"]
     if not isinstance(ham, str):
         return [Sabitleme("rust", dosya, "toolchain-toml", str(ham),
-                          uyari="okunamadı: channel bir metin değil")]
-    return _çöz(dosya, "toolchain-toml", ham, satir_bul(satirlar(icerik), "channel"))
+                          uyari=_m(lang, "w_channel_not_text"))]
+    return _çöz(dosya, "toolchain-toml", ham,
+                satir_bul(satirlar(icerik), "channel"), lang=lang)

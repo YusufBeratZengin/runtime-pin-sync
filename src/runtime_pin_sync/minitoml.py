@@ -13,6 +13,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .dil import m as _m
+
 try:  # Python 3.11+
     import tomllib as _tomllib  # type: ignore[import-not-found]
 except ModuleNotFoundError:  # pragma: no cover - 3.10 yolunda test edilir
@@ -23,15 +25,19 @@ __all__ = ["oku", "mini_ayristir"]
 _MINI_SATIR = re.compile(r'^([A-Za-z0-9_.\-"]+)\s*=\s*(.+)$')
 
 
-def oku(veri: bytes) -> dict[str, Any]:
-    """TOML baytlarını sözlüğe çevirir; bozuksa ValueError fırlatır."""
+def oku(veri: bytes, *, lang: str = "tr") -> dict[str, Any]:
+    """TOML baytlarını sözlüğe çevirir; bozuksa ValueError fırlatır.
+
+    ``lang`` yalnız YEDEK ayrıştırıcının hata metnini etkiler; ``tomllib``
+    hataları stdlib'in kendi (İngilizce) metnidir ve olduğu gibi aktarılır.
+    """
     if _tomllib is not None:
         veri_sözlük: dict[str, Any] = _tomllib.loads(veri.decode("utf-8"))
         return veri_sözlük
-    return mini_ayristir(veri.decode("utf-8"))
+    return mini_ayristir(veri.decode("utf-8"), lang=lang)
 
 
-def mini_ayristir(metin: str) -> dict[str, Any]:
+def mini_ayristir(metin: str, *, lang: str = "tr") -> dict[str, Any]:
     sonuc: dict[str, Any] = {}
     aktif: dict[str, Any] = sonuc
     ham_satirlar = metin.splitlines()
@@ -43,22 +49,23 @@ def mini_ayristir(metin: str) -> dict[str, Any]:
         if not govde:
             continue
         if govde.startswith("[[") and govde.endswith("]]"):
-            aktif = _dizi_tablo(sonuc, govde[2:-2].strip().strip('"'), no)
+            aktif = _dizi_tablo(sonuc, govde[2:-2].strip().strip('"'), no,
+                                lang=lang)
             continue
         if govde.startswith("[") and govde.endswith("]"):
             ad = govde[1:-1].strip().strip('"')
             if "[" in ad or "]" in ad:
-                raise ValueError(f"mini TOML: desteklenmeyen tablo başlığı (satır {no})")
+                raise ValueError(_m(lang, "toml_unsupported_header", no=no))
             hedef: Any = sonuc
             for parca in ad.split("."):
                 hedef = hedef.setdefault(parca, {})
                 if not isinstance(hedef, dict):
-                    raise ValueError(f"mini TOML: çakışan anahtar (satır {no})")
+                    raise ValueError(_m(lang, "toml_conflicting_key", no=no))
             aktif = hedef
             continue
         m = _MINI_SATIR.match(govde)
         if not m:
-            raise ValueError(f"mini TOML: çözülemeyen satır {no}: {govde!r}")
+            raise ValueError(_m(lang, "toml_unparsable_line", no=no, govde=govde))
         anahtar = m.group(1).strip('"')
         deger = m.group(2).strip()
         # çok satırlı dizi/tablo: "[ ... satır satır ... ]" kapanana kadar topla
@@ -68,24 +75,25 @@ def mini_ayristir(metin: str) -> dict[str, Any]:
             if ek:
                 deger = f"{deger} {ek}"
         if not _dengede(deger):
-            raise ValueError(f"mini TOML: kapanmamış dizi/tablo (satır {no})")
+            raise ValueError(_m(lang, "toml_unclosed", no=no))
         aktif[anahtar] = _deger(deger)
     return sonuc
 
 
-def _dizi_tablo(sonuc: dict[str, Any], ad: str, no: int) -> dict[str, Any]:
+def _dizi_tablo(sonuc: dict[str, Any], ad: str, no: int, *,
+                lang: str = "tr") -> dict[str, Any]:
     """[[a.b]] bloğu: listesizse açar, yeni sözlük ekler, ona bağlar."""
     if "[" in ad or "]" in ad:
-        raise ValueError(f"mini TOML: desteklenmeyen tablo başlığı (satır {no})")
+        raise ValueError(_m(lang, "toml_unsupported_header", no=no))
     parcalar = ad.split(".")
     hedef: Any = sonuc
     for parca in parcalar[:-1]:
         hedef = hedef.setdefault(parca, {})
         if not isinstance(hedef, dict):
-            raise ValueError(f"mini TOML: çakışan anahtar (satır {no})")
+            raise ValueError(_m(lang, "toml_conflicting_key", no=no))
     liste = hedef.setdefault(parcalar[-1], [])
     if not isinstance(liste, list):
-        raise ValueError(f"mini TOML: çakışan anahtar (satır {no})")
+        raise ValueError(_m(lang, "toml_conflicting_key", no=no))
     yeni: dict[str, Any] = {}
     liste.append(yeni)
     return yeni

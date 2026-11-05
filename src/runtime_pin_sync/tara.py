@@ -76,7 +76,8 @@ def tara(
                 continue
             if not alt.is_file():
                 continue
-            for p in _dosya_işle(kok, parca_yol, alt, degiskenler):
+            for p in _dosya_işle(kok, parca_yol, alt, degiskenler,
+                                 lang=lang):
                 anahtar = (p.calisma_zamani, p.dosya, p.tur, p.ham)
                 onceki = sonuc.get(anahtar)
                 if onceki is None:
@@ -93,7 +94,9 @@ def tara(
 
 
 def _dosya_işle(
-    kok: Path, göreli: str, yol: Path, degiskenler: dict[str, str] | None
+    kok: Path, göreli: str, yol: Path, degiskenler: dict[str, str] | None,
+    *,
+    lang: str = "tr",
 ) -> list[Sabitleme]:
     ad = yol.name
     # DEPONUN KENDİSİ tarama sınırıdır: depo içinden çıkan bir symlink'in
@@ -105,48 +108,50 @@ def _dosya_işle(
             kök_çözüm = kok.resolve()
         except OSError as exc:
             return [Sabitleme("bilinmeyen", göreli, "dosya", "",
-                              uyari=f"okunamadı: {exc}")]
+                              uyari=m(lang, "w_unreadable_file",
+                                    hata=exc))]
         if çözüm != kök_çözüm and kök_çözüm not in çözüm.parents:
             return [Sabitleme("bilinmeyen", göreli, "dosya", "",
-                              uyari="okunamadı: bağlantı depo dışına işaret "
-                                    "ediyor (okuma reddedildi)")]
+                              uyari=m(lang, "w_symlink_outside"))]
     try:
         if ad in (".nvmrc", ".node-version"):
             return node.surum_dosyasi(göreli, _metin(yol),
-                                      "nvmrc" if ad == ".nvmrc" else "node-version")
+                                      "nvmrc" if ad == ".nvmrc" else "node-version",
+                                      lang=lang)
         if ad == "package.json":
-            return node.package_json(göreli, _metin(yol))
+            return node.package_json(göreli, _metin(yol), lang=lang)
         if ad == ".python-version":
-            return python.surum_dosyasi(göreli, _metin(yol))
+            return python.surum_dosyasi(göreli, _metin(yol), lang=lang)
         if ad == "pyproject.toml":
-            return python.pyproject(göreli, _metin(yol))
+            return python.pyproject(göreli, _metin(yol), lang=lang)
         if ad == "go.mod":
-            return go.gomod(göreli, _metin(yol))
+            return go.gomod(göreli, _metin(yol), lang=lang)
         if ad == ".go-version":
-            return go.surum_dosyasi(göreli, _metin(yol))
+            return go.surum_dosyasi(göreli, _metin(yol), lang=lang)
         if ad == "rust-toolchain":
-            return rust.kanal_dosyasi(göreli, _metin(yol))
+            return rust.kanal_dosyasi(göreli, _metin(yol), lang=lang)
         if ad == "rust-toolchain.toml":
-            return rust.kanal_toml(göreli, _metin(yol))
+            return rust.kanal_toml(göreli, _metin(yol), lang=lang)
         if ad == ".java-version":
-            return java.surum_dosyasi(göreli, _metin(yol))
+            return java.surum_dosyasi(göreli, _metin(yol), lang=lang)
         if ad == ".sdkmanrc":
-            return java.sdkmanrc(göreli, _metin(yol))
+            return java.sdkmanrc(göreli, _metin(yol), lang=lang)
         if ad == "pom.xml":
-            return java.pom(göreli, _metin(yol))
+            return java.pom(göreli, _metin(yol), lang=lang)
         if ad == ".tool-versions":
-            return araclar.tool_versions(göreli, _metin(yol))
+            return araclar.tool_versions(göreli, _metin(yol), lang=lang)
         if ad in ("mise.toml", ".mise.toml"):
-            return araclar.mise(göreli, _metin(yol))
+            return araclar.mise(göreli, _metin(yol), lang=lang)
         if ad == "Dockerfile" or ad.startswith("Dockerfile.") or ad.endswith(".dockerfile"):
-            return dockerfile(göreli, _metin(yol))
+            return dockerfile(göreli, _metin(yol), lang=lang)
         if ad == "devcontainer.json":
-            return devcontainer(göreli, _metin(yol))
+            return devcontainer(göreli, _metin(yol), lang=lang)
         if ad.endswith((".yml", ".yaml")) and "/.github/workflows/" in f"/{göreli}":
-            return is_aksi(göreli, _metin(yol), degiskenler, str(kok))
+            return is_aksi(göreli, _metin(yol), degiskenler, str(kok),
+                            lang=lang)
     except OSError as exc:
         return [Sabitleme("bilinmeyen", göreli, "dosya", "",
-                          uyari=f"okunamadı: {exc}")]
+                          uyari=m(lang, "w_unreadable_file", hata=exc))]
     return []
 
 

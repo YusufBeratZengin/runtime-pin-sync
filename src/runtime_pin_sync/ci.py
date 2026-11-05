@@ -15,6 +15,7 @@ from typing import Any
 
 from . import miniyaml
 from .bulucular import go, grid_pin, java, node, pin, python, satirlar
+from .dil import m as _m
 from .sabitleme import Sabitleme
 
 __all__ = ["is_aksi", "MATRIX_ANAHTARLARI"]
@@ -51,6 +52,8 @@ def is_aksi(
     icerik: str,
     degiskenler: dict[str, str] | None = None,
     depo_koku: str = "",
+    *,
+    lang: str = "tr",
 ) -> list[Sabitleme]:
     """GitHub Actions iş akışını (YAML) ayrıştırıp sürüm sabitlemelerini çıkarır.
 
@@ -73,13 +76,13 @@ def is_aksi(
     """
     degiskenler = degiskenler or {}
     try:
-        veri = miniyaml.ayristir(icerik)
+        veri = miniyaml.ayristir(icerik, lang=lang)
     except miniyaml.MiniYamlError as exc:
         return [Sabitleme("bilinmeyen", dosya, "ci", "",
-                          uyari=f"okunamadı: desteklenmeyen YAML ({exc})")]
+                          uyari=_m(lang, "w_unsupported_yaml", hata=exc))]
     if not isinstance(veri, dict):
         return [Sabitleme("bilinmeyen", dosya, "ci", "",
-                          uyari="okunamadı: iş akışı bir eşleme değil")]
+                          uyari=_m(lang, "w_workflow_not_mapping"))]
     isler = veri.get("jobs")
     if not isinstance(isler, dict):
         return []
@@ -97,7 +100,8 @@ def is_aksi(
         tuketlenen: set[str] = set()
         sonuc.extend(_adimlar(dosya, islem, matris, tuketlenen, satir_list,
                               degiskenler, depo_koku, str(ise_adi),
-                              pencereler if hizma else None, imleç))
+                              pencereler if hizma else None, imleç,
+                              lang=lang))
         for anahtar, deger in matris.items():
             if anahtar in tuketlenen or not isinstance(deger, list):
                 continue
@@ -203,6 +207,8 @@ def _adimlar(
     ise_adi: str,
     pencereler: list[tuple[int, int]] | None,
     imleç: list[int],
+    *,
+    lang: str = "tr",
 ) -> list[Sabitleme]:
     sonuc: list[Sabitleme] = []
     adimlar = islem.get("steps")
@@ -226,20 +232,22 @@ def _adimlar(
         if dosya_giradi and dosya_giradi in with_block:
             sonuc.extend(_surum_dosyasi_gir(dosya, cz, str(with_block[dosya_giradi]),
                                             satir_list, depo_koku, dosya_giradi,
-                                            pencere))
+                                            pencere, lang=lang))
         if giradi not in with_block:
             # `dtolnay/rust-toolchain@1.85.0` gibi eylemler sürümü uses
             # referansından alır; girdi yoksa referans OKUNUR (sessiz kaybolmaz).
             if cz == "rust" and "rust-toolchain@" in uses:
                 ref = uses.rsplit("@", 1)[-1]
                 sonuc.append(pin("rust", dosya, "ci-eylem", ref,
+                                 lang=lang,
                                  satir=_tam_satır(satir_list, uses)))
             continue
         deger = with_block[giradi]
         deger_metni = None if isinstance(deger, list) else str(deger)
         satir_no = _girdi_satırı(satir_list, giradi, deger_metni, pencere)
         sonuc.extend(_deger_sabitlemeleri(dosya, cz, "ci-adim", deger, matris,
-                                          tuketlenen, satir_no, degiskenler))
+                                          tuketlenen, satir_no, degiskenler,
+                                          lang=lang))
     return sonuc
 
 
@@ -252,6 +260,8 @@ def _deger_sabitlemeleri(
     tuketlenen: set[str],
     satir_no: int | None,
     degiskenler: dict[str, str],
+    *,
+    lang: str = "tr",
 ) -> list[Sabitleme]:
     if isinstance(deger, list):
         metinler = [str(x) for x in deger]
@@ -272,9 +282,9 @@ def _deger_sabitlemeleri(
         if isinstance(cozulen, list):
             return [grid_pin(cz, dosya, tur, [str(x) for x in cozulen])]
         if isinstance(cozulen, str):
-            return [pin(cz, dosya, tur, cozulen, satir=None)]
+            return [pin(cz, dosya, tur, cozulen, satir=None, lang=lang)]
         return [Sabitleme(cz, dosya, tur, metin, dinamik=True, satir=satir_no)]
-    return [pin(cz, dosya, tur, metin, satir=satir_no)]
+    return [pin(cz, dosya, tur, metin, satir=satir_no, lang=lang)]
 
 
 def _sablon_ara(
@@ -316,6 +326,8 @@ def _surum_dosyasi_gir(
     dosya: str, cz: str, hedef: str, satir_list: list[str], depo_koku: str,
     giradi: str = "version-file",
     pencere: tuple[int, int] | None = None,
+    *,
+    lang: str = "tr",
 ) -> list[Sabitleme]:
     """node-version-file gibi yönlendirmeler:
 
@@ -336,13 +348,12 @@ def _surum_dosyasi_gir(
     güvenli = _depo_içi_hedef(depo_koku, hedef)
     if güvenli is None:
         return [Sabitleme(cz, dosya, "ci-dosya", hedef,
-                          uyari=f"okunamadı: version-file {hedef!r} depo sınırını "
-                                "aşıyor ya da dosya bağlantısı (rededildi)",
+                          uyari=_m(lang, "w_version_file_outside", hedef=hedef),
                           satir=satir_no)]
     tam, hedef_ad = güvenli
     if not os.path.isfile(tam):
         return [Sabitleme(cz, dosya, "ci-dosya", hedef,
-                          uyari=f"okunamadı: version-file {hedef!r} bulunamadı",
+                          uyari=_m(lang, "w_version_file_missing", hedef=hedef),
                           satir=satir_no)]
     if hedef_ad in TARANAN_SÜRÜM_DOSYALARI:
         return []  # asıl dosya zaten taranacak — tutarlılık kendiliğinden
@@ -351,9 +362,10 @@ def _surum_dosyasi_gir(
             icerik = fh.read()
     except OSError as exc:
         return [Sabitleme(cz, dosya, "ci-dosya", hedef,
-                          uyari=f"okunamadı: version-file {hedef!r} ({exc})",
+                          uyari=_m(lang, "w_version_file_error", hedef=hedef,
+                                  hata=exc),
                           satir=satir_no)]
-    pimler = _sürüm_dosyası_oku(cz, hedef, icerik)
+    pimler = _sürüm_dosyası_oku(cz, hedef, icerik, lang=lang)
     for p in pimler:
         p.tur = "ci-dosya"
     return pimler
@@ -389,16 +401,17 @@ def _depo_içi_hedef(depo_koku: str, hedef: str) -> tuple[str, str] | None:
     return tam, os.path.basename(tam)
 
 
-def _sürüm_dosyası_oku(cz: str, hedef: str, icerik: str) -> list[Sabitleme]:
+def _sürüm_dosyası_oku(cz: str, hedef: str, icerik: str, *,
+                       lang: str = "tr") -> list[Sabitleme]:
     """Özel adlı sürüm dosyasının içeriğini ilgili bulucuya verir."""
     if cz == "node":
-        return node.surum_dosyasi(hedef, icerik)
+        return node.surum_dosyasi(hedef, icerik, lang=lang)
     if cz == "python":
-        return python.surum_dosyasi(hedef, icerik)
+        return python.surum_dosyasi(hedef, icerik, lang=lang)
     if cz == "go":
-        return go.surum_dosyasi(hedef, icerik)
+        return go.surum_dosyasi(hedef, icerik, lang=lang)
     if cz == "java":
-        return java.surum_dosyasi(hedef, icerik)
+        return java.surum_dosyasi(hedef, icerik, lang=lang)
     return []
 
 
