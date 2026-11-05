@@ -64,8 +64,12 @@ def is_aksi(
     Desteklenmeyen yapılar (YAML çıpaları/takma adları ``&``/``*``, birleştirme
     anahtarları ``<<``, özel etiketler ``!``) karşılaşıldığında çökmek yerine
     güvenli ve açık bir ``okunamadı: desteklenmeyen YAML (...)`` uyarısı üretir.
-    Genel amaçlı PyYAML veya ruamel.yaml'a kıyasla sıfır harici bağımlılık sağlar,
-    C-derleme gerektirmez ve CI kurulum süresini sıfıra indirir.
+    Genel amaçlı PyYAML veya ruamel.yaml'a kıyasla ÇALIŞMA ZAMANI bağımlılığı
+    yoktur ve C-derleme gerektirmez. Bu, kurulum süresini sıfıra indirmez: CI
+    iş akışları pip'i yükseltir ve ``[dev]`` ekstra bağımlılıklarını kurar
+    (``.github/workflows/ci.yml``); buradaki kazanç yalnızca paketin
+    ``pip install runtime-pin-sync`` sırasında hiçbir üçüncü taraf YAML
+    ayrıştırıcısı getirmemesidir.
     """
     degiskenler = degiskenler or {}
     try:
