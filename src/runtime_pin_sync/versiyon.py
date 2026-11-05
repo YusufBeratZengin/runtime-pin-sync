@@ -3,6 +3,12 @@
 Her sabitleme bir ``AralıkKümesi``'ne indirgenir: kesişimi olmayan iki küme
 "çelişir". Sabit sürüm, ön ek (``20`` -> ``20.x``), ``>=``/``<=`` aralıkları,
 semver ``^``/``~`` ve PEP 440 ``~=`` desteklenir.
+
+Desteklenmeyen sözdizimi (``!=``, ``===``, npm tire aralığı, ön sürüm soneki,
+Ruby ``~>``, Node ``lts/*`` takma adları) TAHMİN EDİLMEZ: ``spek_ayristir``
+``None`` döndürür ve çağıran taraf bunu "çözümlenemedi/dinamik" olarak raporlar.
+Yanlış yorumlanmış bir aralık, sessiz yanlış çelişki ya da sessiz temiz sonuç
+üreteceği için bu ayrım bilinçlidir.
 """
 
 from __future__ import annotations
@@ -17,7 +23,10 @@ _T = tuple[int, ...]
 
 # v17 / 17.0.2 / 3.12.* / 20.x
 _SURUM = r"v?(\d+(?:\.\d+)*)(?:\.[*x])?"
-_KISIT_RE = re.compile(rf"(?P<op>>=|<=|==|=|~=|~>|!=|\^|~|>|<)?\s*(?P<surum>{_SURUM})(?P<kuyruk>.*)")
+# `~>` BİLİNÇLİ OLARAK yok: Ruby/Bundler'ın "pesimistik" operatörüdür ve
+# semver `~` ile aynı anlama GELMEZ (~>1.2 = >=1.2,<2.0). Yanlış yorumlamak
+# yerine çözümlenemez sayılır ("dinamik/atlandı"), sessiz yanlış eşleşme olmaz.
+_KISIT_RE = re.compile(rf"(?P<op>>=|<=|==|=|~=|\^|!=|~|>|<)?\s*(?P<surum>{_SURUM})(?P<kuyruk>.*)")
 
 
 def _pad(a: _T, b: _T) -> tuple[_T, _T]:
@@ -146,12 +155,13 @@ def _tek_kisit(op: str, v: _T, yildiz: bool, semver: bool = False) -> Aralik:
         return Aralik(ust=v, ust_kapsar=True)
     if op == "<":
         return Aralik(ust=v, ust_kapsar=False)
-    if op in ("~", "~>"):  # semver ~ : ~20.1 -> [20.1, 20.2); ~20.1.5 -> [20.1.5, 20.2)
+    if op == "~":  # semver ~ : ~20.1 -> [20.1, 20.2); ~20.1.5 -> [20.1.5, 20.2)
         ust = _sonraki(v[:2]) if len(v) >= 3 else _sonraki(v)
         return Aralik(alt=v, alt_kapsar=True, ust=ust, ust_kapsar=False)
     if op == "~=":  # PEP 440 compatible: ~=3.12.1 -> [3.12.1, 3.13)
-        if len(v) < 2:
-            return Aralik(alt=v, alt_kapsar=True, ust=_sonraki(v), ust_kapsar=False)
+        # PEP 440 compatible-release EN AZ iki bileşen ister; "~=3" geçersizdir.
+        # Geçersiz belirteci sessizce [3,4) diye yorumlamak yerine çözümlenemez
+        # sayarız (bkz. _kisit).
         return Aralik(alt=v, alt_kapsar=True, ust=_sonraki(v[:-1]), ust_kapsar=False)
     if op == "^":  # semver caret
         if v[0] > 0 or len(v) == 1:
@@ -213,6 +223,9 @@ def _kisit(token: str, semver: bool = False) -> Aralik | None:
     try:
         v = tuple(int(x) for x in v_text.split("."))
     except ValueError:
+        return None
+    if op == "~=" and len(v) < 2:
+        # PEP 440: compatible-release en az iki bileşen ister ("~=3" geçersiz).
         return None
     yildiz = ".*" in token or token.endswith(".x") or token.endswith(".X")
     return _tek_kisit(op, v, yildiz, semver)
