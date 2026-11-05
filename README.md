@@ -273,12 +273,21 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 
 - CLI output defaults to Turkish; `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`)
   translates the human-readable surface: status tables, conflict summaries,
-  sync change lists and *all* manual-edit reasons, error messages and parser
-  warnings — and `--help` itself (description, options and argparse's
-  `usage:`/section labels). JSON keys are not translated (they are a stable
-  API). The table's `TYPE` column is a translated label (`ci-adim` →
-  `ci-step`, `dosya` → `file`); the JSON `tur` field always keeps the stable
-  id.
+  sync change lists and *all* manual-edit reasons, error messages, scan
+  warnings and parser warnings — and `--help` itself (description, options and
+  argparse's `usage:`/section labels). Warnings are produced in the selected
+  language **where they are created** (finders, the Dockerfile/CI readers and
+  the bundled YAML/TOML parsers), not post-translated by string replacement.
+  The only remaining display substitution is the fixed `→ ÇELİŞKİ:` marker on
+  conflict lines (`→ CONFLICT:` in English), not a sentence table.
+  A sentence missing from the message catalogue therefore cannot leak Turkish
+  into English output; `tests/test_dil.py` fails if a single Turkish character
+  shows up in an English report. One honest exception: on Python 3.11+ an
+  invalid TOML file is diagnosed by stdlib `tomllib`, whose own text is quoted
+  verbatim (English) inside the otherwise localized warning. JSON keys are not
+  translated (they are a stable API). The table's `TYPE` column is a translated
+  label (`ci-adim` → `ci-step`, `dosya` → `file`); the JSON `tur` field always
+  keeps the stable id.
 - A directory that cannot be read is never skipped silently: the scan stops
   with exit code 2 (`scan incomplete — unreadable director(y/ies): …`) instead
   of presenting a partial scan as a clean result.

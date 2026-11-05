@@ -270,11 +270,20 @@ kontrolü `[dev]` ekstrasındaki araçları ister — bunların hiçbiri kullan�
 - Komut satırı varsayılan olarak Türkçedir; `--lang en` veya
   `RUNTIME_PIN_SYNC_LANG=en` insan tarafından okunan yüzeyi çevirir: durum
   tablosu, çelişki özeti, sync değişiklik listesi ve TÜM elle-düzeltme
-  gerekçeleri, hata iletileri ve ayrıştırıcı uyarıları — ayrıca `--help`
-  metninin kendisi (açıklama, seçenekler ve argparse'ın `usage:`/bölüm
-  etiketleri). JSON anahtarları çevrilmez (kararlı API). Tablodaki `TÜR`
-  sütunu çevrilen bir etikettir (`ci-adim` → `ci-adım`); JSON'daki `tur`
-  alanı her zaman kararlı kimliği taşır.
+  gerekçeleri, hata iletileri, tarama ve ayrıştırıcı uyarıları — ayrıca
+  `--help` metninin kendisi (açıklama, seçenekler ve argparse'ın `usage:`/bölüm
+  etiketleri). Uyarılar seçilen dilde **üretildikleri yerde** (bulucular,
+  Dockerfile/CI okuyucuları ve paketteki YAML/TOML ayrıştırıcıları) oluşturulur;
+  sonradan metin değiştirmeyle çevrilmez. Geriye kalan tek gösterim değişikliği
+  çelişki satırlarındaki sabit `→ ÇELİŞKİ:` işaretidir (İngilizcede
+  `→ CONFLICT:`); bir cümle tablosu değildir. Böylece katalogda karşılığı olmayan
+  bir cümle İngilizce çıktıya Türkçe sızamaz; `tests/test_dil.py` İngilizce
+  raporda tek bir Türkçe karakter görürse düşer. Dürüst istisna: Python 3.11+
+  üzerinde bozuk TOML'u stdlib `tomllib` bildirir ve onun kendi tanı metni
+  (İngilizce) yerelleştirilmiş uyarının içinde olduğu gibi alıntılanır. JSON
+  anahtarları çevrilmez (kararlı API). Tablodaki `TÜR` sütunu çevrilen bir
+  etikettir (`ci-adim` → `ci-adım`); JSON'daki `tur` alanı her zaman kararlı
+  kimliği taşır.
 - Okunamayan bir dizin sessizce atlanmaz: tarama, kısmi sonucu "temiz" diye
   sunmak yerine çıkış kodu 2 ile durur
   (`tarama eksik — okunamayan dizin(ler): …`).

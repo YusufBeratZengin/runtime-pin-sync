@@ -26,6 +26,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   README.tr and CONTRIBUTING.
 
 ### Fixed
+- `--lang en` could leave Turkish fragments in warnings: warning texts were
+  written in Turkish and "translated" in the report layer by a substring
+  replacement table, so any sentence missing from that table leaked through
+  (e.g. `version-file '../x' points outside repository ya da dosya bağlantısı
+  (rededildi)`), and every finder-level warning (empty `.nvmrc`, invalid
+  `package.json`, bad TOML) was Turkish regardless of `--lang`. Warnings are
+  now produced in the selected language at their source: `lang` is threaded
+  through `tara()`, all finders, `docker`, `ci.is_aksi()` and the bundled
+  `miniyaml`/`minitoml` parsers; `uyari_cevir()` and its replacement table are
+  gone. Regression tests live in `tests/test_dil.py`, which also fails if a
+  single Turkish character appears in an English report.
+- The `version-file` boundary refusal message had a typo (`rededildi`); the
+  catalogue entry now says `reddedildi`, and the English text no longer mixes
+  two languages.
 - `scripts/sir_tarama.sh` no longer treats a failed `grep` as "no match".
   Exit codes are now `0` clean, `1` finding, `2` scan could not complete
   (missing `grep`, permission or IO error); `2` fails the gate, so an
