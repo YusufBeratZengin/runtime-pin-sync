@@ -145,6 +145,34 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `toolchain` = exact) and Java (`pom.xml` first single-line literal element,
   no parent validation, no profiles) readers.
 
+### Changed / Fixed (independent review round 5)
+- `--help` is now localized like the rest of the CLI: `--lang en` (or
+  `RUNTIME_PIN_SYNC_LANG=en`) prints the English description, option help and
+  argparse skeleton labels, while the default Turkish help says `kullanım:`,
+  `konumsal argümanlar:` and `seçenekler:`. The language is resolved before
+  `parse_args`, so `--help` itself follows the requested language; wrapped
+  usage lines keep their alignment.
+- Unsupported version syntax is no longer guessed. Ruby's pessimistic `~>`
+  operator used to be parsed with semver `~` semantics (wrong above two
+  components: Ruby `~>1.2` means `>=1.2,<2.0`), and `~=3` — invalid in
+  PEP 440, which requires two components — used to be read as `>=3,<4`.
+  Both are now unresolvable and reported as skipped, like `!=`, `===`, npm
+  hyphen ranges, pre-release suffixes and `lts/*` aliases. Regression tests
+  pin every case (`tests/test_versiyon_referans.py`).
+- Added a reference suite for the version comparator: PEP 440 examples
+  (compatible release, wildcards, zero-padded equality, exclusive `>`/`<`)
+  and node-semver examples (caret/tilde/X-ranges, `>1.2` == `>=1.3.0`),
+  plus a test fixing the documented dialect difference (`>20`).
+- `ci.py` docstring no longer claims that the bundled YAML parser reduces CI
+  install time to zero (the workflow upgrades pip and installs `[dev]`
+  dependencies); the claim now states the actual guarantee: no third-party
+  YAML parser on the runtime dependency path.
+- `scripts/check.sh` (and therefore the pre-commit hook) now runs
+  `scripts/sir_tarama.sh` first: a grep-only scan for known provider key
+  shapes (AWS, GitHub, Slack, Google, OpenAI-style `sk-`, private-key
+  blocks). Its scope is deliberately narrow and documented in the script —
+  it is not an entropy scanner.
+
 ### Planned
 - Ruby `.ruby-version` finder
 - GitHub Action wrapper (`action.yml`) + pre-commit hook id

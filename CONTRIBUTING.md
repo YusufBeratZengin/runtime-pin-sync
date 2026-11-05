@@ -11,7 +11,8 @@ Thanks for considering a contribution! Small, focused PRs are ideal.
   not invented values.
 - Every accepted behavior needs a failing test first (bug) or a test written
   alongside (feature). The gate is `bash scripts/check.sh`
-  (ruff + strict mypy + pytest ≥ 85% coverage).
+  (secret scan + ruff + strict mypy + pytest ≥ 85% coverage); the repo's
+  `.git/hooks/pre-commit` runs it before every commit.
 
 ## Setup
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tek kapı: lint + tip kontrolü + testler + kapsama eşiği.
+# Tek kapı: sır taraması + lint + tip kontrolü + testler + kapsama eşiği.
 # Kullanım: bash scripts/check.sh   (proje kökünden)
 # Düz Linux/macOS/Windows(Git-Bash) + python3 ile çalışır; ek araç gerekmez.
 set -euo pipefail
@@ -31,6 +31,8 @@ ensure mypy "mypy>=1.10.0,<2.0.0"
 # Temiz klonda src yolunu ortamda da garantiye al
 export PYTHONPATH="src${PYTHONPATH:+:${PYTHONPATH}}"
 
+echo "== sır taraması =="
+bash scripts/sir_tarama.sh
 echo "== lint (ruff) =="
 "$PY" -m ruff check src tests scripts
 echo "== tip (mypy) =="
