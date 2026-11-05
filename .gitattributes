@@ -1,0 +1,13 @@
+# Satır sonları platformdan bağımsız olsun: kapı betikleri (scripts/*.sh)
+# Windows klonunda CRLF'e çevrilirse bash onları çalıştıramaz.
+*          text=auto
+*.sh       text eol=lf
+*.py       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+*.toml     text eol=lf
+*.json     text eol=lf
+*.md       text eol=lf
+*.txt      text eol=lf
+Dockerfile text eol=lf
+*.png      binary
