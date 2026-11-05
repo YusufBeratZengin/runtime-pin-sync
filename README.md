@@ -162,6 +162,12 @@ sets are disjoint:
   never conflicts, and no single member is promoted to "the" reference.
 - Supported spec syntax: plain/prefix (`20`, `20.x`), ranges (`>= > <= < ==`),
   `||` unions, comma/AND lists (`>=3.10,<4.0`), semver `^`/`~`, PEP 440 `~=`.
+- Unsupported spec syntax is never guessed: `!=`, `===`, npm hyphen ranges
+  (`1.2.3 - 1.4.0`), pre-release suffixes (`1.2.3-beta.1`), Ruby's `~>`
+  operator and Node aliases (`lts/iron`) are reported as unresolvable
+  (skipped), never reinterpreted as a different range. `~=` needs at least
+  two components (PEP 440), so `~=3` is unresolvable rather than silently
+  read as `>=3,<4`.
 - **Nothing dynamic is an error.** `${{ matrix.x }}`, unresolvable Dockerfile
   `ARG` tags, and unknown `lts/…` aliases are reported as *skipped*, not as
   failures. Supply values with `--degisken node=20` when you want them checked.
@@ -268,9 +274,11 @@ Our built-in YAML parser (`src/runtime_pin_sync/miniyaml.py`) intentionally impl
 - CLI output defaults to Turkish; `--lang en` (or `RUNTIME_PIN_SYNC_LANG=en`)
   translates the human-readable surface: status tables, conflict summaries,
   sync change lists and *all* manual-edit reasons, error messages and parser
-  warnings. JSON keys are not translated (they are a stable API). The table's
-  `TYPE` column is a translated label (`ci-adim` → `ci-step`, `dosya` →
-  `file`); the JSON `tur` field always keeps the stable id.
+  warnings — and `--help` itself (description, options and argparse's
+  `usage:`/section labels). JSON keys are not translated (they are a stable
+  API). The table's `TYPE` column is a translated label (`ci-adim` →
+  `ci-step`, `dosya` → `file`); the JSON `tur` field always keeps the stable
+  id.
 - A directory that cannot be read is never skipped silently: the scan stops
   with exit code 2 (`scan incomplete — unreadable director(y/ies): …`) instead
   of presenting a partial scan as a clean result.

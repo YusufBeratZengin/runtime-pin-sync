@@ -80,6 +80,43 @@ MESAJLAR: dict[str, tuple[str, str]] = {
         "scan incomplete — unreadable director(y/ies): {dizinler}; the result "
         "is not a clean pass",
     ),
+    # --- CLI yardım metinleri (``--help`` de seçilen dilde basılır) -----------
+    "cli_description": (
+        "Dağılmış çalışma zamanı sürüm sabitlemelerini denetle ve senkronla.",
+        "Check and sync scattered runtime version pins.",
+    ),
+    "cli_help_flag": (
+        "bu yardımı göster ve çık",
+        "show this help message and exit",
+    ),
+    "cli_version_flag": (
+        "program sürümünü göster ve çık",
+        "show program's version number and exit",
+    ),
+    "cli_path": (
+        "depo kökü (varsayılan: .)",
+        "repository root (default: .)",
+    ),
+    "cli_json": (
+        "makine okuyabilir JSON çıktı",
+        "machine-readable JSON output",
+    ),
+    "cli_source": (
+        "tek gerçek kaynak dosya (ör. .tool-versions)",
+        "single source of truth file (e.g. .tool-versions)",
+    ),
+    "cli_variable": (
+        "çözülemeyen CI ifadesi için değer ver (AD=DEĞER)",
+        "value for an unresolved CI expression (NAME=VALUE)",
+    ),
+    "cli_lang": (
+        "çıktının ve bu yardımın dili (varsayılan: tr; RUNTIME_PIN_SYNC_LANG)",
+        "language of the output and of this help (default: tr; RUNTIME_PIN_SYNC_LANG)",
+    ),
+    "cli_dry_run": (
+        "dosyaları değiştirmeden göster",
+        "show changes without modifying files",
+    ),
 }
 
 

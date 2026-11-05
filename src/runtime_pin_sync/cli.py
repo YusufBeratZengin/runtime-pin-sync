@@ -5,6 +5,9 @@
 
 Çıkış kodları: 0 = uyumlu; 1 = çelişki (ya da elle düzeltme gerekti);
 2 = kullanım/yol hatası.
+
+``--help`` metni de seçilen dilde basılır: ``--lang en`` (ya da
+``RUNTIME_PIN_SYNC_LANG=en``) hem tabloyu hem yardımı çevirir.
 """
 
 from __future__ import annotations
@@ -25,28 +28,105 @@ from .yaz import norm_yol, senkronla
 
 __all__ = ["main"]
 
+# argparse'in sabit İngilizce iskelet etiketleri; ``tr`` yardımında çevrilir.
+_YARDIM_BASLIKLARI = {
+    "positional arguments": "konumsal argümanlar",
+    "options": "seçenekler",
+}
 
-def _parser(sync_kipi: bool) -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
+
+class _DilliParser(argparse.ArgumentParser):
+    """argparse'in sabit etiketlerini (``usage:``, bölüm başlıkları) dile uydurur.
+
+    Açıklama ve seçenek metinleri katalogdan gelir; argparse'ın kendi ürettiği
+    iskelet ise İngilizcedir. Yalnız bu iskelet çevrilir — kullanıcı metinlerine
+    dokunulmaz (metinlerde bu etiketler geçmez, testle sabitlenmiştir).
+    """
+
+    dil: str = "tr"
+
+    def format_help(self) -> str:
+        metin = super().format_help()
+        if self.dil == "en":
+            return metin
+        metin = _kullanim_onekini_cevir(metin)
+        for ingilizce, turkce in _YARDIM_BASLIKLARI.items():
+            metin = metin.replace(f"\n{ingilizce}:", f"\n{turkce}:")
+        return metin
+
+
+def _kullanim_onekini_cevir(metin: str) -> str:
+    """``usage:`` -> ``kullanım:``; sarmalanmış satırların girintisini korur.
+
+    argparse sürekli satırları ön ek genişliğine göre hizalar; ön ek
+    uzadığında hiza kaymasın diye usage bloğunun devam satırları kaydırılır.
+    """
+    eski, yeni = "usage: ", "kullanım: "
+    if not metin.startswith(eski):
+        return metin
+    fark = len(yeni) - len(eski)
+    satirlar = metin.split("\n")
+    satirlar[0] = yeni + satirlar[0][len(eski):]
+    i = 1
+    while i < len(satirlar) and satirlar[i].strip():
+        satirlar[i] = " " * fark + satirlar[i]
+        i += 1
+    return "\n".join(satirlar)
+
+
+def _dil_belirle(lang: str | None) -> str:
+    """Geçerli dili seçer: açık bayrak > ortam değişkeni > ``tr``.
+
+    Tanınmayan değer sessizce ``tr``'ye düşer (parçalanmış çıktı üretmemek
+    için); ``--lang`` zaten ``choices`` ile sınırlıdır.
+    """
+    secili = (lang or os.environ.get("RUNTIME_PIN_SYNC_LANG") or "tr").lower()
+    return secili if secili in ("tr", "en") else "tr"
+
+
+def _lang_on_tarama(girdi: list[str]) -> str | None:
+    """``parse_args``'tan ÖNCE ``--lang`` değerini bulur.
+
+    Yardım metni argparse tarafından, yani dil bilinmeden üretilir; bu ön
+    tarama olmadan ``--lang en --help`` İngilizce çıktı vaat edip Türkçe
+    yardım basardı. ``--lang=en`` biçimi de desteklenir.
+    """
+    for i, a in enumerate(girdi):
+        if a == "--lang":
+            return girdi[i + 1] if i + 1 < len(girdi) else None
+        if a.startswith("--lang="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def _parser(sync_kipi: bool, lang: str = "tr") -> argparse.ArgumentParser:
+    def y(anahtar: str) -> str:
+        return m(lang, anahtar)
+
+    p = _DilliParser(
         prog="runtime-pin-sync",
-        description="Dağılmış sürüm sabitlemelerini denetle ve senkronla / Check and sync runtime pins.",
+        description=y("cli_description"),
+        add_help=False,  # kendi -h metnimiz dil seçimini izlesin
     )
+    p.dil = lang
+    p.add_argument("-h", "--help", action="help", help=y("cli_help_flag"))
     p.add_argument("--version", "-V", action="version",
-                   version=f"runtime-pin-sync {__version__}")
+                   version=f"runtime-pin-sync {__version__}",
+                   help=y("cli_version_flag"))
     p.add_argument("yol", nargs="?", default=".",
-                   help="depo kökü (varsayılan: .) / repository root (default: .)")
+                   help=y("cli_path"))
     p.add_argument("--json", action="store_true", dest="json",
-                   help="makine okuyabilir JSON çıktı / machine-readable JSON output")
+                   help=y("cli_json"))
     p.add_argument("--kaynak", "--source", dest="kaynak", metavar="DOSYA",
-                   help="tek gerçek kaynak dosya (ör. .tool-versions) / single source of truth")
+                   help=y("cli_source"))
     p.add_argument("--degisken", "--variable", dest="degiskenler",
                    action="append", default=[], metavar="AD=DEĞER",
-                   help="çözülemeyen CI ifadeleri için değer ver / provide value for CI expression")
+                   help=y("cli_variable"))
     p.add_argument("--lang", choices=["tr", "en"], default=None,
-                   help="çıktı dili / output language (tr|en, varsayılan: tr)")
+                   help=y("cli_lang"))
     if sync_kipi:
         p.add_argument("--dry-run", "--kuru", action="store_true", dest="dry_run",
-                       help="dosyaları değiştirmeden göster / show changes without modifying files")
+                       help=y("cli_dry_run"))
     else:
         p.set_defaults(dry_run=False)
     return p
@@ -79,10 +159,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     komut = "check"
     if girdi and girdi[0] in ("sync", "check"):
         komut = girdi.pop(0)
-    args = _parser(komut == "sync").parse_args(girdi)
-    lang = (args.lang or os.environ.get("RUNTIME_PIN_SYNC_LANG", "tr")).lower()
-    if lang not in ("tr", "en"):
-        lang = "tr"
+    # yardım metni --lang'ı görmeden üretilir: dile göre parser kurulmadan önce
+    # bayrağı ön taramayla oku (ortam değişkeni de aynı önceliği izler)
+    lang = _dil_belirle(_lang_on_tarama(girdi))
+    args = _parser(komut == "sync", lang).parse_args(girdi)
+    lang = _dil_belirle(args.lang)
     err_prefix = "error" if lang == "en" else "hata"
 
     try:

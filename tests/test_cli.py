@@ -4,6 +4,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from conftest import yaz
 from runtime_pin_sync.cli import main
 
@@ -278,3 +280,56 @@ def test_tarama_eksikse_sıfır_dönmez(tmp_path, monkeypatch, capsys):
     assert "tarama eksik" in capsys.readouterr().err
     assert main([str(depo), "--lang", "en"]) == 2
     assert "scan incomplete" in capsys.readouterr().err
+
+
+# --- yardım metni de seçilen dili izler --------------------------------------
+
+def _yardim(argv, capsys):
+    with pytest.raises(SystemExit) as exc:
+        main(argv)
+    assert exc.value.code == 0
+    return capsys.readouterr().out
+
+
+def test_yardim_varsayilan_turkce(monkeypatch, capsys):
+    monkeypatch.delenv("RUNTIME_PIN_SYNC_LANG", raising=False)
+    out = _yardim(["--help"], capsys)
+    assert out.startswith("kullanım: runtime-pin-sync")
+    assert "depo kökü (varsayılan: .)" in out
+    assert "bu yardımı göster ve çık" in out
+    assert "program sürümünü göster ve çık" in out
+    assert "makine okuyabilir JSON çıktı" in out
+    assert "\nkonumsal argümanlar:" in out and "\nseçenekler:" in out
+    assert "repository root" not in out
+    assert "usage:" not in out and "positional arguments" not in out
+
+
+def test_yardim_lang_bayragi_ile_ingilizce(monkeypatch, capsys):
+    monkeypatch.delenv("RUNTIME_PIN_SYNC_LANG", raising=False)
+    out = _yardim(["--lang", "en", "--help"], capsys)
+    assert "repository root (default: .)" in out
+    assert "machine-readable JSON output" in out
+    assert "show this help message and exit" in out
+    assert "depo kökü" not in out
+
+
+def test_yardim_lang_esittir_bicimi(monkeypatch, capsys):
+    monkeypatch.delenv("RUNTIME_PIN_SYNC_LANG", raising=False)
+    out = _yardim(["--lang=en", "-h"], capsys)
+    assert "single source of truth file (e.g. .tool-versions)" in out
+
+
+def test_yardim_ortam_degiskenini_izler(monkeypatch, capsys):
+    monkeypatch.setenv("RUNTIME_PIN_SYNC_LANG", "en")
+    out = _yardim(["--help"], capsys)
+    assert "language of the output and of this help" in out
+    assert "çıktının ve bu yardımın dili" not in out
+
+
+def test_sync_yardimi_dry_run_metnini_dile_gore_basar(monkeypatch, capsys):
+    monkeypatch.delenv("RUNTIME_PIN_SYNC_LANG", raising=False)
+    tr = _yardim(["sync", "--help"], capsys)
+    assert "--dry-run" in tr and "dosyaları değiştirmeden göster" in tr
+    en = _yardim(["sync", "--lang", "en", "--help"], capsys)
+    assert "show changes without modifying files" in en
+    assert "dosyaları değiştirmeden" not in en

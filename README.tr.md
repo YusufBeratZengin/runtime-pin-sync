@@ -160,6 +160,11 @@ vardır:
 - Desteklenen sözdizimi: düz/ön ek (`20`, `20.x`), aralıklar (`>= > <= < ==`),
   `||` birleşimleri, virgülle VE listeleri (`>=3.10,<4.0`), semver `^`/`~`,
   PEP 440 `~=`.
+- Desteklenmeyen sözdizimi TAHMİN EDİLMEZ: `!=`, `===`, npm tire aralığı
+  (`1.2.3 - 1.4.0`), ön sürüm soneki (`1.2.3-beta.1`), Ruby'nin `~>`
+  operatörü ve Node takma adları (`lts/iron`) "çözümlenemedi/atlandı" olarak
+  raporlanır; başka bir aralık gibi yorumlanmaz. `~=` en az iki bileşen
+  ister (PEP 440): `~=3` sessizce `>=3,<4` sayılmaz, çözümlenemez kalır.
 - **Dinamik ifade hata değildir.** `${{ matrix.x }}`, çözülemeyen Dockerfile
   `ARG` etiketleri ve bilinmeyen `lts/…` takma adları "atlandı" olarak rapor
   edilir; denetlenmesini istiyorsanız `--degisken node=20` ile değer verin.
@@ -265,10 +270,11 @@ kontrolü `[dev]` ekstrasındaki araçları ister — bunların hiçbiri kullan�
 - Komut satırı varsayılan olarak Türkçedir; `--lang en` veya
   `RUNTIME_PIN_SYNC_LANG=en` insan tarafından okunan yüzeyi çevirir: durum
   tablosu, çelişki özeti, sync değişiklik listesi ve TÜM elle-düzeltme
-  gerekçeleri, hata iletileri ve ayrıştırıcı uyarıları. JSON anahtarları
-  çevrilmez (kararlı API). Tablodaki `TÜR` sütunu çevrilen bir etikettir
-  (`ci-adim` → `ci-adım`); JSON'daki `tur` alanı her zaman kararlı kimliği
-  taşır.
+  gerekçeleri, hata iletileri ve ayrıştırıcı uyarıları — ayrıca `--help`
+  metninin kendisi (açıklama, seçenekler ve argparse'ın `usage:`/bölüm
+  etiketleri). JSON anahtarları çevrilmez (kararlı API). Tablodaki `TÜR`
+  sütunu çevrilen bir etikettir (`ci-adim` → `ci-adım`); JSON'daki `tur`
+  alanı her zaman kararlı kimliği taşır.
 - Okunamayan bir dizin sessizce atlanmaz: tarama, kısmi sonucu "temiz" diye
   sunmak yerine çıkış kodu 2 ile durur
   (`tarama eksik — okunamayan dizin(ler): …`).
