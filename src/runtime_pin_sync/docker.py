@@ -56,7 +56,9 @@ _ÖN_SÜRÜM_RE = re.compile(
 _DEVCONTAINER_İMAJ_RE = re.compile(
     r"^mcr\.microsoft\.com/devcontainers/", re.IGNORECASE)
 _NESİL_ÖNEKİ_RE = re.compile(r"^\d+-(?=\d)")
-_YALNIZ_NESİL_RE = re.compile(r"\d+(?:-[a-zA-Z].*)?")
+# Yalnız gerçek nesil değerleri (1, 2) belirsizdir. `javascript-node:22` ve
+# `python:3` gibi etiketlerde sayı çalışma zamanının ana sürümüdür.
+_YALNIZ_NESİL_RE = re.compile(r"[12](?:-[a-zA-Z].*)?")
 
 
 def _devcontainer_gerçek_etiket(ad: str, etiket: str) -> str | None:
@@ -65,7 +67,7 @@ def _devcontainer_gerçek_etiket(ad: str, etiket: str) -> str | None:
     Yalnız ``devcontainers/`` yolundaki imajlarda ve önekten sonra gerçekten
     bir sürüm etiketi geldiğinde uygulanır; ``python:3.12-bookworm`` gibi
     öneksiz etiketler değişmez.
-    ``1`` ve ``1-bookworm`` yalnız imaj neslidir; çalışma zamanı sürümü
+    ``1``, ``2`` ve ``1-bookworm`` yalnız imaj neslidir; çalışma zamanı sürümü
     bilinmediğinden ``None`` döner.
     """
     if not _DEVCONTAINER_İMAJ_RE.search(ad):
