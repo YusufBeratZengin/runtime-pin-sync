@@ -5,25 +5,29 @@ from __future__ import annotations
 from .. import minitoml
 from ..dil import m as _m
 from ..sabitleme import Sabitleme
-from . import pin, satir_bul, satirlar
+from . import grid_pin, pin, satir_bul, satirlar
 
 __all__ = ["surum_dosyasi", "pyproject"]
 
 
 def surum_dosyasi(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:
-    """.python-version: pyenv tek satır kullanır; birden çok satıra da izin verilir."""
-    sonuc: list[Sabitleme] = []
-    satir_list = satirlar(icerik)
-    for i, s in enumerate(satir_list, start=1):
-        t = s.strip()
-        if not t or t.startswith("#"):
-            continue
-        sonuc.append(pin("python", dosya, "python-version", t, satir=i,
-                         lang=lang))
-    if not sonuc:
-        sonuc.append(Sabitleme("python", dosya, "python-version", "",
-                               uyari=_m(lang, "w_empty_file")))
-    return sonuc
+    """pyenv çoklu sürümleri tek birleşimdir; satır satır yeniden yazılmaz."""
+    girdiler = [(i, s.strip()) for i, s in enumerate(satirlar(icerik), start=1)
+                if s.strip() and not s.strip().startswith("#")]
+    if not girdiler:
+        return [Sabitleme("python", dosya, "python-version", "",
+                          uyari=_m(lang, "w_empty_file"))]
+    if len(girdiler) == 1:
+        i, t = girdiler[0]
+        return [pin("python", dosya, "python-version", t, satir=i, lang=lang)]
+    degerler = [t for _, t in girdiler]
+    pimler = [pin("python", dosya, "python-version", t, satir=i, lang=lang)
+              for i, t in girdiler]
+    if any(not p.kullanilabilir for p in pimler):
+        # Kısmen çözülen birleşim gerçek kümeyi eksik gösterir.
+        return [Sabitleme("python", dosya, "python-version", ", ".join(degerler),
+                          uyari=_m(lang, "w_multiline_unparsable"))]
+    return [grid_pin("python", dosya, "python-version", degerler)]
 
 
 def pyproject(dosya: str, icerik: str, *, lang: str = "tr") -> list[Sabitleme]:

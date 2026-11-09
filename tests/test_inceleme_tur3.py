@@ -171,7 +171,7 @@ def test_mise_anahtarsız_bölümde_belirsizlik_conumu_yok():
     assert all(p.satir is None for p in pimler)
 
 
-# --- 5. Çakışan satır otomatik plana geri dönemez (yaz.py) ---------------------
+# --- 5. Çok değerli dizi tek ızgaradır; otomatik yazılmaz (K2 sonrası) ---------
 
 def test_mise_listesi_tek_hedef_olarak_raporlanır(tmp_path):
     # [3.9, 3.10, 3.11] artık ÜÇ ayrı pim değil, tek birleşim pimidir: aynı
@@ -180,10 +180,12 @@ def test_mise_listesi_tek_hedef_olarak_raporlanır(tmp_path):
     yaz(tmp_path, "mise.toml", """[tools]
 python = ["3.9", "3.10", "3.11"]
 """)
+    once = (tmp_path / "mise.toml").read_bytes()
     otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
     assert otomatik == []
     (kayit,) = elle
     assert kayit.satir == 2 and "ızgara" in kayit.gerekce
+    assert (tmp_path / "mise.toml").read_bytes() == once
 
 
 # --- 6. Çok değerli kaynak: ilk üye otomatik yazılmaz (karsilastir.py) ---------

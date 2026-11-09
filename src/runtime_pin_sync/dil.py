@@ -96,6 +96,14 @@ MESAJLAR: dict[str, tuple[str, str]] = {
         "okunamadı: boş dosya",
         "could not read: empty file",
     ),
+    "w_multiline_unparsable": (
+        "okunamadı: çok satırlı dosyada çözülemeyen değer",
+        "could not read: unresolvable value in multiline version file",
+    ),
+    "w_devcontainer_generation": (
+        "okunamadı: devcontainer nesil etiketinde sürüm bilinmiyor ({etiket})",
+        "could not read: runtime version unknown in devcontainer generation tag ({etiket})",
+    ),
     "w_empty_token": (
         "okunamadı: boş belirteç",
         "could not read: empty token",

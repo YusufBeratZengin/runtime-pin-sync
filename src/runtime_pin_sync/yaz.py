@@ -250,11 +250,11 @@ def _yazma_denemesi(
     if p.tur not in YAZILABİLİR_TÜRLER:
         ag.gerekce = m(lang, "type_not_rewritable", tur=p.tur)
         return ag
-    if satir is None:
-        ag.gerekce = m(lang, "line_unknown")
-        return ag
     if not sabit_belirtec_mi(p.ham):
         ag.gerekce = m(lang, "target_not_fixed", ham=p.ham)
+        return ag
+    if satir is None:
+        ag.gerekce = m(lang, "line_unknown")
         return ag
     try:
         tam = _güvenli_hedef(kok, p.dosya, lang)

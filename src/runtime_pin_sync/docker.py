@@ -44,10 +44,39 @@ _VARYANTLAR = frozenset({
     "stretch", "xenial", "jdk", "jre", "server-jre", "jdk-alpine",
     "jre-alpine", "nanoserver", "windowsservercore", "ltsc",
 })
-# Ön sürüm sözcükleri: `node:22-rc1` KARARLI 22'ye indirgenmez.
+# Alpine taban sürümü TEK parçadır: `3.12-alpine3.19` sürüm 3.12'dir.
+_ALPİNE_RE = re.compile(r"alpine\d+(?:\.\d+)*")
+# Ön sürüm sözcükleri: `node:22-rc1` KARARLI 22'ye indirgenmez. Noktalı
+# biçim (`22.0.0-rc.1`) de tek parça sayılır çünkü nokta ayraç değildir.
 _ÖN_SÜRÜM_RE = re.compile(
     r"(?:rc|alpha|beta|pre|preview|canary|nightly|next|insider|snapshot|dev)"
-    r"\d*$", re.IGNORECASE)
+    r"(?:[.-]?\d+)*$", re.IGNORECASE)
+# Resmî devcontainer imajları nesil öneki taşır:
+# `mcr.microsoft.com/devcontainers/python:1-3.12-bookworm` → gerçek sürüm 3.12.
+_DEVCONTAINER_İMAJ_RE = re.compile(
+    r"^mcr\.microsoft\.com/devcontainers/", re.IGNORECASE)
+_NESİL_ÖNEKİ_RE = re.compile(r"^\d+-(?=\d)")
+_YALNIZ_NESİL_RE = re.compile(r"\d+(?:-[a-zA-Z].*)?")
+
+
+def _devcontainer_gerçek_etiket(ad: str, etiket: str) -> str | None:
+    """Resmî devcontainer etiketindeki nesil önekini (`1-`) atar.
+
+    Yalnız ``devcontainers/`` yolundaki imajlarda ve önekten sonra gerçekten
+    bir sürüm etiketi geldiğinde uygulanır; ``python:3.12-bookworm`` gibi
+    öneksiz etiketler değişmez.
+    ``1`` ve ``1-bookworm`` yalnız imaj neslidir; çalışma zamanı sürümü
+    bilinmediğinden ``None`` döner.
+    """
+    if not _DEVCONTAINER_İMAJ_RE.search(ad):
+        return etiket
+    if _YALNIZ_NESİL_RE.fullmatch(etiket):
+        return None
+    m = _NESİL_ÖNEKİ_RE.match(etiket)
+    if not m:
+        return etiket
+    kalan = etiket[m.end():]
+    return kalan if _ETIKET_SURUM_RE.match(kalan) else etiket
 
 
 def imaj_ad_ve_etiket(referans: str) -> tuple[str, str]:
@@ -83,11 +112,13 @@ def etiket_sınıflandır(etiket: str, *,
         return sürüm, "sürüm", None
     if kalan[0] not in "-._":
         return sürüm, "bilinmeyen", _m(lang, "w_tag_unparsable", etiket=etiket)
-    parçalar = [p.lower() for p in re.split(r"[-._]", kalan.lstrip("-._")) if p]
+    # Nokta ayraç değildir: `alpine3.19` tek varyant parçasıdır.
+    parçalar = [p.lower() for p in re.split(r"[-_]", kalan.lstrip("-._")) if p]
     if any(_ÖN_SÜRÜM_RE.fullmatch(p) for p in parçalar):
         return sürüm, "ön-sürüm", \
         _m(lang, "w_tag_prerelease", etiket=etiket)
-    if all(p in _VARYANTLAR or p.isdigit() for p in parçalar):
+    if all(p in _VARYANTLAR or p.isdigit() or _ALPİNE_RE.fullmatch(p)
+           for p in parçalar):
         return sürüm, "sürüm", None
     return sürüm, "bilinmeyen", \
         _m(lang, "w_tag_suffix", etiket=etiket)
@@ -106,7 +137,10 @@ def imaj_durumu(ad: str, etiket: str, *,
     kisa = ad.lower().rsplit("/", 1)[-1]
     for eslek, cz in _İMAJ_ESLEME:
         if kisa == eslek or kisa.endswith("-" + eslek) or kisa.startswith(eslek + "-"):
-            sürüm, durum, uyari = etiket_sınıflandır(etiket, lang=lang)
+            gerçek_etiket = _devcontainer_gerçek_etiket(ad, etiket)
+            if gerçek_etiket is None:
+                return cz, "", _m(lang, "w_devcontainer_generation", etiket=etiket)
+            sürüm, durum, uyari = etiket_sınıflandır(gerçek_etiket, lang=lang)
             if durum != "sürüm":
                 return cz, "", uyari  # "bilinmeyen" uyarılı, "ön-sürüm"/"etiketsiz" uyarısız ya da uyarılı
             return cz, sürüm, None

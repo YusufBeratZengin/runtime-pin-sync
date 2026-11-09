@@ -221,6 +221,7 @@ node = ["22", "24"]
     assert p.ham == "22, 24"
     assert p.kullanilabilir and not p.aralik.sabit
     assert p.satir == 2
+    assert not p.yeniden_yazilabilir
 
 
 def test_mise_bozuk_ve_araçsız():

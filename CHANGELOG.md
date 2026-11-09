@@ -26,6 +26,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   README.tr and CONTRIBUTING.
 
 ### Fixed
+- Official devcontainer image tags carry a generation prefix
+  (`devcontainers/python:1-3.12-bookworm`); the prefix is ignored and the real
+  runtime version is read. Generation-only tags (`1`, `1-bookworm`) are reported
+  as unreadable instead of being taken as version 1.
+- Alpine base tags (`3.12-alpine3.19`) are read as version 3.12, and dotted
+  pre-release tags (`22.0.0-rc.1`) are no longer reduced to the stable version.
+- A multi-line `.python-version` is treated as one version set instead of being
+  rewritten line by line; unresolvable lines make the whole file unreadable.
+- `mise.toml` array values are reported as one version set and round-trip
+  unchanged.
 - `--lang en` could leave Turkish fragments in warnings: warning texts were
   written in Turkish and "translated" in the report layer by a substring
   replacement table, so any sentence missing from that table leaked through
