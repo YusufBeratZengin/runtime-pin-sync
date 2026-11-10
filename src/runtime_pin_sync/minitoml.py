@@ -68,6 +68,8 @@ def mini_ayristir(metin: str, *, lang: str = "tr") -> dict[str, Any]:
             raise ValueError(_m(lang, "toml_unparsable_line", no=no, govde=govde))
         anahtar = m.group(1).strip('"')
         deger = m.group(2).strip()
+        if deger.startswith("="):  # `x = = 3`: tomllib reddeder, yedek de reddetmeli
+            raise ValueError(_m(lang, "toml_unparsable_line", no=no, govde=govde))
         # çok satırlı dizi/tablo: "[ ... satır satır ... ]" kapanana kadar topla
         while not _dengede(deger) and i < len(ham_satirlar):
             ek = _yorum_temizle(ham_satirlar[i].strip())

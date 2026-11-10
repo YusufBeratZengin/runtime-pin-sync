@@ -86,5 +86,5 @@ jobs:
       - name: Kurulu paket sürümü pyproject ile aynı mı
         shell: bash
         run: |
-          sürüm="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
-          "$RUNNER_TEMP/temiz/bin/runtime-pin-sync" --version | grep -q " $sürüm$"
+          surum="$(python -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])")"
+          "$RUNNER_TEMP/temiz/bin/runtime-pin-sync" --version | grep -q " $surum$"
