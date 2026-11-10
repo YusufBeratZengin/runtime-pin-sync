@@ -91,11 +91,13 @@ def test_mise_listesi_tek_elle_kaydı_üretir(tmp_path):
     yaz(tmp_path, "mise.toml", """[tools]
 python = ["3.9", "3.10"]
 """)
+    once = (tmp_path / "mise.toml").read_bytes()
     otomatik, elle = senkronla(tmp_path, ".tool-versions", True)
     assert otomatik == []
     (kayit,) = elle
     assert kayit.dosya == "mise.toml" and kayit.satir == 2
     assert "ızgara" in kayit.gerekce
+    assert (tmp_path / "mise.toml").read_bytes() == once
     assert (tmp_path / "mise.toml").read_text(encoding="utf-8") == """[tools]
 python = ["3.9", "3.10"]
 """
